@@ -166,7 +166,7 @@ export default function CheckoutPage() {
           <div className="space-y-3">
             <button
               onClick={() => {
-                toast.info('📋 Redirecting to order history...', {
+                toast.info('Redirecting to order history...', {
                   position: "top-right",
                   autoClose: 1500,
                 });
