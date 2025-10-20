@@ -1,0 +1,236 @@
+'use client';
+
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+
+interface LoadingContextType {
+  isLoading: boolean;
+  showLoading: () => void;
+  hideLoading: () => void;
+  navigateWithLoading: (url: string) => void;
+}
+
+const LoadingContext = createContext<LoadingContextType | undefined>(undefined);
+
+export function useLoading() {
+  const context = useContext(LoadingContext);
+  if (!context) {
+    throw new Error('useLoading must be used within LoadingProvider');
+  }
+  return context;
+}
+
+interface LoadingProviderProps {
+  children: ReactNode;
+}
+
+export default function LoadingProvider({ children }: LoadingProviderProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+
+  const showLoading = () => setIsLoading(true);
+  const hideLoading = () => setIsLoading(false);
+
+  const navigateWithLoading = (url: string) => {
+    // Show loading first
+    setIsLoading(true);
+    
+    // Small delay to ensure loading shows, then navigate
+    setTimeout(() => {
+      router.push(url);
+      
+      // Hide loading after navigation
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 600); // Keep loading for 600ms after navigation
+    }, 100); // Small delay before navigation
+  };
+
+  return (
+    <LoadingContext.Provider value={{ isLoading, showLoading, hideLoading, navigateWithLoading }}>
+      {children}
+      
+      {/* Global Loading Overlay */}
+      {isLoading && (
+        <div className="fixed inset-0 z-[9999] bg-emerald-50 flex items-center justify-center">
+          <div className="w-32 h-32 text-emerald-600">
+            <svg viewBox="0 0 240 240" className="w-full h-full">
+              <style>{`
+                .pl1123__ring {
+                  animation: ringA 2s linear infinite;
+                }
+                .pl1123__ring--a {
+                  stroke: currentColor;
+                }
+                .pl1123__ring--b {
+                  animation-name: ringB;
+                  stroke: currentColor;
+                }
+                .pl1123__ring--c {
+                  animation-name: ringC;
+                  stroke: currentColor;
+                }
+                .pl1123__ring--d {
+                  animation-name: ringD;
+                  stroke: currentColor;
+                }
+                @keyframes ringA {
+                  from, 4% {
+                    stroke-dasharray: 0 660;
+                    stroke-width: 20;
+                    stroke-dashoffset: -330;
+                  }
+                  12% {
+                    stroke-dasharray: 60 600;
+                    stroke-width: 30;
+                    stroke-dashoffset: -335;
+                  }
+                  32% {
+                    stroke-dasharray: 60 600;
+                    stroke-width: 30;
+                    stroke-dashoffset: -595;
+                  }
+                  40%, 54% {
+                    stroke-dasharray: 0 660;
+                    stroke-width: 20;
+                    stroke-dashoffset: -660;
+                  }
+                  62% {
+                    stroke-dasharray: 60 600;
+                    stroke-width: 30;
+                    stroke-dashoffset: -665;
+                  }
+                  82% {
+                    stroke-dasharray: 60 600;
+                    stroke-width: 30;
+                    stroke-dashoffset: -925;
+                  }
+                  90%, to {
+                    stroke-dasharray: 0 660;
+                    stroke-width: 20;
+                    stroke-dashoffset: -990;
+                  }
+                }
+                @keyframes ringB {
+                  from, 12% {
+                    stroke-dasharray: 0 220;
+                    stroke-width: 20;
+                    stroke-dashoffset: -110;
+                  }
+                  20% {
+                    stroke-dasharray: 20 200;
+                    stroke-width: 30;
+                    stroke-dashoffset: -115;
+                  }
+                  40% {
+                    stroke-dasharray: 20 200;
+                    stroke-width: 30;
+                    stroke-dashoffset: -195;
+                  }
+                  48%, 62% {
+                    stroke-dasharray: 0 220;
+                    stroke-width: 20;
+                    stroke-dashoffset: -220;
+                  }
+                  70% {
+                    stroke-dasharray: 20 200;
+                    stroke-width: 30;
+                    stroke-dashoffset: -225;
+                  }
+                  90% {
+                    stroke-dasharray: 20 200;
+                    stroke-width: 30;
+                    stroke-dashoffset: -305;
+                  }
+                  98%, to {
+                    stroke-dasharray: 0 220;
+                    stroke-width: 20;
+                    stroke-dashoffset: -330;
+                  }
+                }
+                @keyframes ringC {
+                  from {
+                    stroke-dasharray: 0 440;
+                    stroke-width: 20;
+                    stroke-dashoffset: 0;
+                  }
+                  8% {
+                    stroke-dasharray: 40 400;
+                    stroke-width: 30;
+                    stroke-dashoffset: -5;
+                  }
+                  28% {
+                    stroke-dasharray: 40 400;
+                    stroke-width: 30;
+                    stroke-dashoffset: -175;
+                  }
+                  36%, 58% {
+                    stroke-dasharray: 0 440;
+                    stroke-width: 20;
+                    stroke-dashoffset: -220;
+                  }
+                  66% {
+                    stroke-dasharray: 40 400;
+                    stroke-width: 30;
+                    stroke-dashoffset: -225;
+                  }
+                  86% {
+                    stroke-dasharray: 40 400;
+                    stroke-width: 30;
+                    stroke-dashoffset: -395;
+                  }
+                  94%, to {
+                    stroke-dasharray: 0 440;
+                    stroke-width: 20;
+                    stroke-dashoffset: -440;
+                  }
+                }
+                @keyframes ringD {
+                  from, 8% {
+                    stroke-dasharray: 0 440;
+                    stroke-width: 20;
+                    stroke-dashoffset: 0;
+                  }
+                  16% {
+                    stroke-dasharray: 40 400;
+                    stroke-width: 30;
+                    stroke-dashoffset: -5;
+                  }
+                  36% {
+                    stroke-dasharray: 40 400;
+                    stroke-width: 30;
+                    stroke-dashoffset: -175;
+                  }
+                  44%, 50% {
+                    stroke-dasharray: 0 440;
+                    stroke-width: 20;
+                    stroke-dashoffset: -220;
+                  }
+                  58% {
+                    stroke-dasharray: 40 400;
+                    stroke-width: 30;
+                    stroke-dashoffset: -225;
+                  }
+                  78% {
+                    stroke-dasharray: 40 400;
+                    stroke-width: 30;
+                    stroke-dashoffset: -395;
+                  }
+                  86%, to {
+                    stroke-dasharray: 0 440;
+                    stroke-width: 20;
+                    stroke-dashoffset: -440;
+                  }
+                }
+              `}</style>
+              <circle className="pl1123__ring pl1123__ring--a" cx="120" cy="120" r="105" fill="none" stroke="currentColor" strokeWidth="20" strokeDasharray="0 660" strokeDashoffset="-330" strokeLinecap="round"/>
+              <circle className="pl1123__ring pl1123__ring--b" cx="120" cy="120" r="35" fill="none" stroke="currentColor" strokeWidth="20" strokeDasharray="0 220" strokeDashoffset="-110" strokeLinecap="round"/>
+              <circle className="pl1123__ring pl1123__ring--c" cx="85" cy="120" r="70" fill="none" stroke="currentColor" strokeWidth="20" strokeDasharray="0 440" strokeLinecap="round"/>
+              <circle className="pl1123__ring pl1123__ring--d" cx="155" cy="120" r="70" fill="none" stroke="currentColor" strokeWidth="20" strokeDasharray="0 440" strokeLinecap="round"/>
+            </svg>
+          </div>
+        </div>
+      )}
+    </LoadingContext.Provider>
+  );
+}
