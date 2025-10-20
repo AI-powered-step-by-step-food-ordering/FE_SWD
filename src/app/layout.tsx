@@ -1,45 +1,58 @@
 import "@/css/satoshi.css";
 import "@/css/style.css";
+import "@/css/animations.css";
+import 'react-toastify/dist/ReactToastify.css';
 
-import { Sidebar } from "@/components/Layouts/sidebar";
-
-import "flatpickr/dist/flatpickr.min.css";
-import "jsvectormap/dist/jsvectormap.css";
-
-import { Header } from "@/components/Layouts/header";
 import type { Metadata } from "next";
 import NextTopLoader from "nextjs-toploader";
 import type { PropsWithChildren } from "react";
-import { Providers } from "./providers";
+import LoadingProvider from "@/components/shared/LoadingProvider";
+import { ToastContainer } from 'react-toastify';
 
 export const metadata: Metadata = {
   title: {
-    template: "%s | NextAdmin - Next.js Dashboard Kit",
-    default: "NextAdmin - Next.js Dashboard Kit",
+    template: "%s | HealthyBowl - Smart Food Ordering",
+    default: "HealthyBowl - Smart Food Ordering System",
   },
   description:
-    "Next.js admin dashboard toolkit with 200+ templates, UI components, and integrations for fast dashboard development.",
+    "Step-by-step healthy food ordering system with AI-powered nutritional recommendations for office workers.",
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      // { url: '/favicon.ico', sizes: '32x32', type: 'image/x-icon' }
+    ],
+    shortcut: '/icon.svg',
+    apple: '/icon.svg',
+  },
 };
 
 export default function RootLayout({ children }: PropsWithChildren) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body>
-        <Providers>
-          <NextTopLoader color="#5750F1" showSpinner={false} />
-
-          <div className="flex min-h-screen">
-            <Sidebar />
-
-            <div className="w-full bg-gray-2 dark:bg-[#020d1a]">
-              <Header />
-
-              <main className="isolate mx-auto w-full max-w-screen-2xl overflow-hidden p-4 md:p-6 2xl:p-10">
-                {children}
-              </main>
-            </div>
-          </div>
-        </Providers>
+      <head>
+        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <link rel="alternate icon" href="/favicon.ico" />
+        <link rel="mask-icon" href="/icon.svg" color="#22C55E" />
+      </head>
+      <body className="bg-gray-50 dark:bg-gray-900" suppressHydrationWarning>
+          <NextTopLoader color="#10B981" showSpinner={false} />
+          <LoadingProvider>
+            <main className="min-h-screen" suppressHydrationWarning>
+              {children}
+            </main>
+            <ToastContainer
+              position="top-right"
+              autoClose={3000}
+              hideProgressBar={false}
+              newestOnTop={false}
+              closeOnClick
+              rtl={false}
+              pauseOnFocusLoss
+              draggable
+              pauseOnHover
+              theme="light"
+            />
+          </LoadingProvider>
       </body>
     </html>
   );

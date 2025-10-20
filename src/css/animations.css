@@ -1,0 +1,136 @@
+/* Marquee Animation */
+@keyframes marquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
+
+/* Mobile-specific faster marquee animations */
+@media (max-width: 639px) {
+  .animate-marquee {
+    animation: marquee 15s linear infinite;
+  }
+}
+
+/* Bounce animation for floating elements */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Pulse animation for decorative elements */
+@keyframes glow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+.animate-glow {
+  animation: glow 4s ease-in-out infinite;
+}
+
+/* Spinning animation for bowl */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 20s linear infinite;
+}
+
+/* Hover animations for cards */
+.hover-lift:hover {
+  transform: translateY(-8px);
+  transition: transform 0.3s ease;
+}
+
+/* Gradient text animation */
+@keyframes gradient {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.gradient-text {
+  background: linear-gradient(-45deg, #16a34a, #059669, #10b981, #34d399);
+  background-size: 400% 400%;
+  animation: gradient 3s ease infinite;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* 3D Bowl Effect */
+.bowl-3d {
+  background: radial-gradient(ellipse at center, 
+    rgba(34, 197, 94, 0.1) 0%, 
+    rgba(34, 197, 94, 0.2) 30%, 
+    rgba(34, 197, 94, 0.4) 60%, 
+    rgba(34, 197, 94, 0.6) 100%);
+  box-shadow: 
+    inset 0 0 50px rgba(34, 197, 94, 0.3),
+    0 0 100px rgba(34, 197, 94, 0.2),
+    0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+/* Enhanced drop shadow for emojis */
+.emoji-shadow {
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2)) 
+          drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+/* Float rotate animation for decorative elements */
+@keyframes float-rotate {
+  0%, 100% { 
+    transform: translateY(0px) rotate(0deg); 
+  }
+  25% { 
+    transform: translateY(-10px) rotate(5deg); 
+  }
+  50% { 
+    transform: translateY(-20px) rotate(0deg); 
+  }
+  75% { 
+    transform: translateY(-10px) rotate(-5deg); 
+  }
+}
+
+.animate-float-rotate {
+  animation: float-rotate 6s ease-in-out infinite;
+}
+
+/* Pulse glow animation */
+@keyframes pulse-glow {
+  0%, 100% { 
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+    transform: scale(1);
+  }
+  50% { 
+    box-shadow: 0 0 40px rgba(34, 197, 94, 0.5);
+    transform: scale(1.02);
+  }
+}
+
+.pulse-glow {
+  animation: pulse-glow 4s ease-in-out infinite;
+}
+
+/* 3D Bowl background */
+.bowl-3d {
+  background: radial-gradient(ellipse at center, 
+    rgba(34, 197, 94, 0.1) 0%, 
+    rgba(34, 197, 94, 0.2) 30%, 
+    rgba(34, 197, 94, 0.4) 60%, 
+    rgba(34, 197, 94, 0.6) 100%);
+}
+
