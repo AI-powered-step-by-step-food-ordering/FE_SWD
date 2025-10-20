@@ -86,7 +86,7 @@ export default function WelcomePage() {
                   <span className="text-2xl">⚠️</span>
                   <div>
                     <p className="font-medium text-gray-900">Allergies: {user.allergies.join(', ')}</p>
-                    <p className="text-sm text-gray-600">We'll warn you about these ingredients</p>
+                    <p className="text-sm text-gray-600">We&apos;ll warn you about these ingredients</p>
                   </div>
                 </div>
               )}
@@ -103,7 +103,7 @@ export default function WelcomePage() {
 
           {/* Next Steps */}
           <div className="space-y-4">
-            <h3 className="font-bold text-gray-900">What's Next?</h3>
+            <h3 className="font-bold text-gray-900">What&apos;s Next?</h3>
             
             <div className="grid grid-cols-1 gap-3">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-left">

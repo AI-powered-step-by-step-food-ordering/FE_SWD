@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Header from '@/components/shared/Header';
 import { usePageLoading } from '@/hooks/usePageLoading';
@@ -17,7 +17,7 @@ interface Order {
   deliveryTime: string;
 }
 
-export default function CheckoutPage() {
+function CheckoutForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { showLoading, hideLoading, navigateWithLoading } = usePageLoading();
@@ -33,18 +33,15 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     const loadCheckoutData = async () => {
-      // Show loading immediately
-      showLoading();
-      
-      // Add delay for loading animation
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait a bit for navigateWithLoading to complete its animation
+      await new Promise(resolve => setTimeout(resolve, 800));
       
       // Check authentication
       const userData = localStorage.getItem('user');
       const isAuth = localStorage.getItem('isAuthenticated');
       
       if (!isAuth || !userData) {
-        hideLoading();
+        hideLoading(); // Hide loading before redirect
         toast.error('🔒 Please login to access checkout.', {
           position: "top-right",
           autoClose: 2000,
@@ -62,7 +59,7 @@ export default function CheckoutPage() {
         if (currentOrder) {
           setOrder(currentOrder);
         } else {
-          hideLoading();
+          hideLoading(); // Hide loading before redirect
           toast.error('❌ Order not found. Redirecting to order page.', {
             position: "top-right",
             autoClose: 2000,
@@ -72,23 +69,22 @@ export default function CheckoutPage() {
         }
       }
       
-      // Hide loading and show page
+      // Hide the global loading and show page
       hideLoading();
       setIsPageLoading(false);
     };
 
     loadCheckoutData();
-  }, [orderId, router, showLoading, hideLoading, navigateWithLoading]);
+  }, [orderId, router, navigateWithLoading, hideLoading]);
 
   const handlePayment = async () => {
     if (!order) return;
     
     setIsProcessing(true);
-    showLoading();
     
     try {
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2500));
+      // Show processing animation for better UX
+      await new Promise(resolve => setTimeout(resolve, 1800));
       
       // Update order status
       const orders = JSON.parse(localStorage.getItem('orderHistory') || '[]');
@@ -99,32 +95,27 @@ export default function CheckoutPage() {
       );
       localStorage.setItem('orderHistory', JSON.stringify(updatedOrders));
       
-      // Hide loading
-      hideLoading();
-      
-      // Show success toast
-      toast.success('Your order has been confirmed.', {
+      // Show success toast with smooth transition
+      toast.success('🎉 Payment successful! Order confirmed!', {
         position: "top-right",
-        autoClose: 2500,
+        autoClose: 2000,
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
         draggable: true,
       });
       
-      // Wait for toast, then show success screen
+      // Smooth transition to success screen
       setTimeout(() => {
-        setOrderPlaced(true);
         setIsProcessing(false);
-      }, 1500);
+        setOrderPlaced(true);
+      }, 800);
       
     } catch (error) {
-      // Hide loading
-      hideLoading();
       setIsProcessing(false);
       
       // Show error toast
-      toast.error('Please try again.', {
+      toast.error('❌ Payment failed! Please try again.', {
         position: "top-right",
         autoClose: 3000,
         hideProgressBar: false,
@@ -136,34 +127,37 @@ export default function CheckoutPage() {
   };
 
   if (isPageLoading || !order || !user) {
-    return null; // Global loading overlay will handle this
+    return null; // Let the global loading from navigateWithLoading handle this
   }
 
   if (orderPlaced) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center px-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center animate-in fade-in-0 zoom-in-95 duration-500">
           {/* Success Animation */}
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-in zoom-in-50 duration-700 delay-200">
+            <svg className="w-10 h-10 text-green-600 animate-in fade-in-0 duration-500 delay-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
             </svg>
           </div>
           
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Order Confirmed</h1>
-          <p className="text-gray-600 mb-6">Your healthy bowl is being prepared</p>
+          <div className="animate-in slide-in-from-bottom-4 duration-500 delay-300">
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">🎉 Order Confirmed!</h1>
+            <p className="text-gray-600 mb-6">Your healthy bowl is being prepared with love</p>
+          </div>
           
-          <div className="bg-green-50 rounded-xl p-4 mb-6">
+          <div className="bg-green-50 rounded-xl p-4 mb-6 animate-in slide-in-from-bottom-4 duration-500 delay-500">
             <div className="flex items-center justify-between mb-2">
               <span className="font-medium text-green-800">Order #{order.id}</span>
-              <span className="text-green-600">₹{order.totalPrice}</span>
+              <span className="text-green-600 font-bold">₹{order.totalPrice}</span>
             </div>
-            <div className="text-sm text-green-700">
-              Estimated delivery: {order.deliveryTime}
+            <div className="text-sm text-green-700 flex items-center justify-center space-x-1">
+              <span>⏰</span>
+              <span>Estimated delivery: {order.deliveryTime}</span>
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-3 animate-in slide-in-from-bottom-4 duration-500 delay-700">
             <button
               onClick={() => {
                 toast.info('Redirecting to order history...', {
@@ -418,17 +412,25 @@ export default function CheckoutPage() {
               <button
                 onClick={handlePayment}
                 disabled={isProcessing}
-                className={`w-full py-3 rounded-lg font-bold transition-all duration-300 ${
+                className={`w-full py-3 rounded-lg font-bold transition-all duration-300 relative overflow-hidden ${
                   isProcessing 
-                    ? 'bg-gray-400 cursor-not-allowed text-gray-600' 
+                    ? 'bg-green-500 cursor-not-allowed text-white' 
                     : 'bg-green-600 text-white hover:bg-green-700 hover:shadow-lg transform hover:-translate-y-1 active:translate-y-0'
                 }`}
               >
-                {isProcessing ? (
-                  'Processing Payment...'
-                ) : (
-                  `🛒 Place Order - ₹${Math.round(order.totalPrice * 1.05)}`
+                {isProcessing && (
+                  <div className="absolute inset-0 bg-green-400 animate-pulse"></div>
                 )}
+                <div className="relative flex items-center justify-center space-x-2">
+                  {isProcessing ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                      <span>Processing Payment...</span>
+                    </>
+                  ) : (
+                    <span>🛒 Place Order - ₹{Math.round(order.totalPrice * 1.05)}</span>
+                  )}
+                </div>
               </button>
 
               <p className="text-xs text-gray-500 mt-3 text-center">
@@ -439,5 +441,17 @@ export default function CheckoutPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+      </div>
+    }>
+      <CheckoutForm />
+    </Suspense>
   );
 }

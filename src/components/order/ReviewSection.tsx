@@ -36,14 +36,23 @@ export default function ReviewSection({ selectedItems, totalPrice, totalNutritio
   const { showLoading, hideLoading, navigateWithLoading } = usePageLoading();
 
   const handleSubmitOrder = async () => {
-    if (isSubmitting) return; // Prevent double submission
+    // Prevent double submission with early return
+    if (isSubmitting) {
+      console.log('Already submitting, ignoring click');
+      return;
+    }
     
     setIsSubmitting(true);
-    showLoading();
 
     try {
-      // Simulate API call to submit order
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Show toast immediately for better UX
+      toast.info('🔄 Creating your order...', {
+        position: "top-right",
+        autoClose: 1500,
+      });
+
+      // Shorter delay for better perceived performance
+      await new Promise(resolve => setTimeout(resolve, 1200));
       
       // Save order to history
       const newOrder = {
@@ -61,39 +70,25 @@ export default function ReviewSection({ selectedItems, totalPrice, totalNutritio
       const updatedOrders = [newOrder, ...existingOrders];
       localStorage.setItem('orderHistory', JSON.stringify(updatedOrders));
       
-      // Hide loading
-      hideLoading();
-      
       // Show success toast
-      toast.success('🎉 Order placed successfully! Redirecting to checkout...', {
+      toast.success('✅ Order created! Going to checkout...', {
         position: "top-right",
-        autoClose: 2000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
+        autoClose: 1200,
       });
       
-      // Wait for toast, then redirect
+      // Use the original loading system but with optimized timing
       setTimeout(() => {
         navigateWithLoading(`/checkout?orderId=${newOrder.id}`);
-      }, 1500);
+      }, 600);
       
     } catch (error) {
       console.error('Error submitting order:', error);
-      
-      // Hide loading
-      hideLoading();
       setIsSubmitting(false);
       
       // Show error toast
-      toast.error('❌ Failed to place order. Please try again.', {
+      toast.error('❌ Failed to create order. Please try again.', {
         position: "top-right",
         autoClose: 3000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
       });
     }
   };
@@ -133,20 +128,28 @@ export default function ReviewSection({ selectedItems, totalPrice, totalNutritio
       <button 
         onClick={handleSubmitOrder}
         disabled={isSubmitting}
-        className={`w-full mt-6 py-3 rounded-xl font-bold transition-all duration-300 ${
+        className={`w-full mt-6 py-3 rounded-xl font-bold transition-all duration-200 relative overflow-hidden ${
           isSubmitting 
-            ? 'bg-gray-400 cursor-not-allowed text-gray-600' 
+            ? 'bg-green-500 cursor-not-allowed text-white' 
             : 'bg-green-600 text-white hover:bg-green-700 hover:shadow-lg transform hover:-translate-y-1 active:translate-y-0'
         }`}
+        style={{ 
+          pointerEvents: isSubmitting ? 'none' : 'auto' // Completely disable pointer events when submitting
+        }}
       >
-        {isSubmitting ? (
-          <div className="flex items-center justify-center space-x-2">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-600"></div>
-            <span>Processing Order...</span>
-          </div>
-        ) : (
-          '🛒 Proceed to Checkout'
+        {isSubmitting && (
+          <div className="absolute inset-0 bg-green-400 animate-pulse"></div>
         )}
+        <div className="relative flex items-center justify-center space-x-2">
+          {isSubmitting ? (
+            <>
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+              <span>Creating Order...</span>
+            </>
+          ) : (
+            <span>🛒 Proceed to Checkout</span>
+          )}
+        </div>
       </button>
     </div>
   );

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePageLoading } from '@/hooks/usePageLoading';
 import { toast } from 'react-toastify';
 
@@ -220,9 +221,11 @@ export default function RegisterPage() {
       {/* Right Side - Simple Food Image */}
       <div className="hidden lg:flex items-center justify-center bg-emerald-50 p-12">
         <div className="text-center">
-          <img 
+          <Image 
             src="/images/login/Healthyfood.png" 
             alt="Fresh healthy food" 
+            width={500}
+            height={500}
             className="w-full h-[500px] object-cover"
           />
           <h3 className="text-2xl font-bold text-gray-800 mt-6 mb-3">Fresh & Vibrant</h3>

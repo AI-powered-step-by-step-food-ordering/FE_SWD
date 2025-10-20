@@ -252,7 +252,7 @@ export default function QuickCombos({ onComboSelect, selectedGoal }: QuickCombos
             <h3 className="font-bold text-yellow-800">Rush Hour Mode Active</h3>
           </div>
           <p className="text-sm text-yellow-700 mb-2">
-            It's peak lunch time (11:15-13:30)! Quick combos are prepared faster and help reduce kitchen load.
+            It&apos;s peak lunch time (11:15-13:30)! Quick combos are prepared faster and help reduce kitchen load.
           </p>
           <div className="flex items-center space-x-4 text-xs text-yellow-600">
             <span>🚀 Faster preparation</span>

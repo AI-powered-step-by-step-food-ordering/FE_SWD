@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { usePageLoading } from '@/hooks/usePageLoading';
 import { toast } from 'react-toastify';
@@ -70,7 +70,7 @@ const USER_GOALS: Record<string, UserGoals> = {
   'maintenance': { type: 'maintenance', targetCalories: 500, targetProtein: 30, targetCarbs: 50, targetFat: 18 }
 };
 
-export default function OrderPage() {
+function OrderForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { navigateWithLoading, showLoading, hideLoading } = usePageLoading();
@@ -396,5 +396,17 @@ export default function OrderPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function OrderPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+      </div>
+    }>
+      <OrderForm />
+    </Suspense>
   );
 }

@@ -36,14 +36,8 @@ interface Order {
   deliveryTime?: string;
 }
 
-export default function OrderHistoryPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [user, setUser] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const router = useRouter();
-
-  // Sample order data
-  const sampleOrders: Order[] = [
+// Sample order data (moved outside component to avoid dependency issues)
+const sampleOrders: Order[] = [
     {
       id: 'ORD-001',
       date: '2024-01-20T12:30:00Z',
@@ -90,6 +84,12 @@ export default function OrderHistoryPage() {
       deliveryTime: '18 mins'
     }
   ];
+
+export default function OrderHistoryPage() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [user, setUser] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const userData = localStorage.getItem('user');

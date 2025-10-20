@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePageLoading } from '@/hooks/usePageLoading';
 import { toast } from 'react-toastify';
 
-export default function LoginPage() {
+function LoginForm() {
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -184,7 +185,7 @@ export default function LoginPage() {
         {/* Register Link */}
         <div className="mt-8 text-center">
           <p className="text-gray-600">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link href="/auth/register" className="text-emerald-600 hover:text-emerald-700 font-semibold transition-colors duration-200">
               Sign up now
             </Link>
@@ -196,9 +197,11 @@ export default function LoginPage() {
       {/* Right Side - Simple Food Image */}
       <div className="hidden lg:flex items-center justify-center bg-emerald-50 p-12">
         <div className="text-center">
-          <img 
+          <Image 
             src="/images/login/Healthyfood.png" 
             alt="Fresh healthy food" 
+            width={500}
+            height={500}
             className="w-full h-[500px] object-cover"
           />
           <h3 className="text-2xl font-bold text-gray-800 mt-6 mb-3">Fresh & Nutritious</h3>
@@ -206,5 +209,17 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-emerald-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }
