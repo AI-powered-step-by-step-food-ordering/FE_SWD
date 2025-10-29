@@ -1,6 +1,8 @@
 import type { ApiResponse } from '@/types/api';
 
-const API_BASE_URL = 'http://cinezone.info:4458/api';
+// Use environment variable when available (Next.js exposes NEXT_PUBLIC_* to the browser)
+// Fallback to local backend for development
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080/api';
 
 export class ApiClient {
   private baseUrl: string;
@@ -15,10 +17,18 @@ export class ApiClient {
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
     
-    const headers = {
+    // Get access token from localStorage
+    const accessToken = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...options.headers as Record<string, string>,
     };
+
+    // Add Authorization header if token exists
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
 
     try {
       const response = await fetch(url, {

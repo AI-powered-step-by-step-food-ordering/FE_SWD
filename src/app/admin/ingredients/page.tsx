@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import AdminLayout from '@/components/admin/AdminLayout';
+import FirebaseImageUpload from '@/components/shared/FirebaseImageUpload';
 import { apiClient } from '@/lib/api';
+import { getFirebaseThumbnail } from '@/lib/firebase-storage';
 import type { Ingredient, IngredientRequest, Category } from '@/types/api';
 import { toast } from 'react-toastify';
 
@@ -17,6 +20,7 @@ export default function IngredientsPage() {
     unit: 'g',
     unitPrice: 0,
     categoryId: '',
+    imageUrl: '',
   });
 
   useEffect(() => {
@@ -81,6 +85,7 @@ export default function IngredientsPage() {
       unit: ingredient.unit,
       unitPrice: ingredient.unitPrice,
       categoryId: ingredient.categoryId,
+      imageUrl: ingredient.imageUrl || '',
     });
     setShowModal(true);
   };
@@ -92,6 +97,7 @@ export default function IngredientsPage() {
       unit: 'g',
       unitPrice: 0,
       categoryId: '',
+      imageUrl: '',
     });
   };
 
@@ -140,38 +146,60 @@ export default function IngredientsPage() {
             </div>
           ) : (
             ingredients.map((ingredient) => (
-              <div key={ingredient.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-1">{ingredient.name}</h3>
-                    <p className="text-sm text-gray-600">{getCategoryName(ingredient.categoryId)}</p>
+              <div key={ingredient.id} className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                {/* Image */}
+                {ingredient.imageUrl ? (
+                  <div className="relative w-full h-40 bg-gray-100">
+                    <Image
+                      src={getFirebaseThumbnail(ingredient.imageUrl)}
+                      alt={ingredient.name}
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
                   </div>
-                </div>
+                ) : (
+                  <div className="w-full h-40 bg-gray-100 flex items-center justify-center">
+                    <svg className="w-12 h-12 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                )}
 
-                <div className="space-y-2 mb-4">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Unit:</span>
-                    <span className="font-medium text-gray-900">{ingredient.unit}</span>
+                {/* Content */}
+                <div className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-1">{ingredient.name}</h3>
+                      <p className="text-sm text-gray-600">{getCategoryName(ingredient.categoryId)}</p>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Price:</span>
-                    <span className="font-medium text-green-600">${ingredient.unitPrice.toFixed(2)}</span>
-                  </div>
-                </div>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleEdit(ingredient)}
-                    className="flex-1 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(ingredient.id)}
-                    className="flex-1 px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
-                  >
-                    Delete
-                  </button>
+                  <div className="space-y-2 mb-4">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Unit:</span>
+                      <span className="font-medium text-gray-900">{ingredient.unit}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Price:</span>
+                      <span className="font-medium text-green-600">${ingredient.unitPrice.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleEdit(ingredient)}
+                      className="flex-1 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(ingredient.id)}
+                      className="flex-1 px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             ))
@@ -257,6 +285,17 @@ export default function IngredientsPage() {
                         value={formData.unitPrice}
                         onChange={(e) => setFormData({ ...formData, unitPrice: parseFloat(e.target.value) })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                    </div>
+
+                    <div>
+                      <FirebaseImageUpload
+                        value={formData.imageUrl}
+                        onChange={(url: string) => setFormData({ ...formData, imageUrl: url })}
+                        folder="ingredients"
+                        label="Ingredient Image"
+                        maxSizeMB={5}
+                        showPreview={true}
                       />
                     </div>
                   </div>

@@ -16,6 +16,7 @@ export interface User {
   goalCode: string;
   role: string;
   status: string;
+  imageUrl?: string;
 }
 
 export interface UserRequest {
@@ -25,6 +26,7 @@ export interface UserRequest {
   goalCode: string;
   role: string;
   status: string;
+  imageUrl?: string;
 }
 
 // Order Types
@@ -54,6 +56,7 @@ export interface Ingredient {
   unit: string;
   unitPrice: number;
   categoryId: string;
+  imageUrl?: string;
 }
 
 export interface IngredientRequest {
@@ -61,6 +64,7 @@ export interface IngredientRequest {
   unit: string;
   unitPrice: number;
   categoryId: string;
+  imageUrl?: string;
 }
 
 // Category Types
@@ -68,15 +72,13 @@ export interface Category {
   id: string;
   name: string;
   kind: string;
-  displayOrder: number;
-  isActive: boolean;
+  imageUrl?: string;
 }
 
 export interface CategoryRequest {
   name: string;
   kind: string;
-  displayOrder: number;
-  isActive: boolean;
+  imageUrl?: string;
 }
 
 // Promotion Types
@@ -92,6 +94,7 @@ export interface Promotion {
   isActive: boolean;
   usageLimit?: number;
   usageCount?: number;
+  imageUrl?: string;
 }
 
 export interface PromotionRequest {
@@ -104,6 +107,7 @@ export interface PromotionRequest {
   endDate: string;
   isActive: boolean;
   usageLimit?: number;
+  imageUrl?: string;
 }
 
 // Store Types
@@ -115,6 +119,7 @@ export interface Store {
   email: string;
   isActive: boolean;
   openingHours?: string;
+  imageUrl?: string;
 }
 
 export interface StoreRequest {
@@ -124,4 +129,19 @@ export interface StoreRequest {
   email: string;
   isActive: boolean;
   openingHours?: string;
+  imageUrl?: string;
+}
+
+// BowlTemplate Types
+export interface BowlTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  imageUrl?: string;
+}
+
+export interface BowlTemplateRequest {
+  name: string;
+  description?: string;
+  imageUrl?: string;
 }
