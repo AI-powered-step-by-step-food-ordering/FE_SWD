@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePageLoading } from '@/hooks/usePageLoading';
 
 export default function HeroSection() {
   const [isMounted, setIsMounted] = useState(false);
+  const { navigateWithLoading } = usePageLoading();
 
   useEffect(() => {
     setIsMounted(true);
@@ -44,9 +46,9 @@ export default function HeroSection() {
                 track your macros in real-time, and achieve your health goals faster.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-0">
-                <a href="/order" className="bg-green-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold hover:bg-green-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 text-center">
+                <button onClick={() => navigateWithLoading('/order')} className="bg-green-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold hover:bg-green-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 text-center">
                   🥗 Build Your Bowl
-                </a>
+                </button>
                 <button id="viewNutritionBtn" className="border-2 border-green-600 text-green-600 px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold hover:bg-green-600 hover:text-white transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
                   📊 View Nutrition Plans
                 </button>
@@ -157,9 +159,9 @@ export default function HeroSection() {
               track your macros in real-time, and achieve your health goals faster.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-0">
-              <a href="/order" className="bg-green-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold hover:bg-green-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 text-center">
+              <button onClick={() => navigateWithLoading('/order')} className="bg-green-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold hover:bg-green-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 text-center">
                 🥗 Build Your Bowl
-              </a>
+              </button>
               <button id="viewNutritionBtn" className="border-2 border-green-600 text-green-600 px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold hover:bg-green-600 hover:text-white transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
                 📊 View Nutrition Plans
               </button>

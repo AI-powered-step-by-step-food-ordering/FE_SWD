@@ -6,6 +6,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePageLoading } from '@/hooks/usePageLoading';
 import { toast } from 'react-toastify';
+import { authService } from '@/services';
+import { useAuthStore } from '@/store/auth.store';
 
 function LoginForm() {
   const [formData, setFormData] = useState({
@@ -17,6 +19,8 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { navigateWithLoading, showLoading, hideLoading } = usePageLoading();
+  const setAuthenticated = useAuthStore(s => s.setAuthenticated);
+  const setUser = useAuthStore(s => s.setUser);
 
   useEffect(() => {
     const from = searchParams.get('from');
@@ -33,46 +37,63 @@ function LoginForm() {
     showLoading();
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Call real API
+      const response = await authService.login(formData);
       
-      // Store user data in localStorage (temporary solution)
-      const userData = {
-        email: formData.email,
-        name: formData.email.split('@')[0],
-        loginTime: new Date().toISOString(),
-        goals: 'maintenance',
-        allergies: [],
-        preferences: []
-      };
-      
-      localStorage.setItem('user', JSON.stringify(userData));
-      localStorage.setItem('isAuthenticated', 'true');
-      
-      // Hide loading
-      hideLoading();
-      
-      // Show success toast
-      toast.success(' Login successful!', {
-        position: "top-right",
-        autoClose: 2000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-      });
-      
-      // Wait for toast to show, then redirect
-      setTimeout(() => {
-        const from = searchParams.get('from');
-        if (from === 'order') {
-          navigateWithLoading('/order');
-        } else {
-          navigateWithLoading('/');
+      if (response.success) {
+        const data: any = response.data;
+        // Treat as verified unless API explicitly says otherwise
+        const isVerified = !(data?.emailVerified === false || data?.status === 'PENDING_VERIFICATION');
+
+        if (!isVerified) {
+          hideLoading();
+          toast.info('Your email is not verified. Please enter the OTP we sent.', {
+            position: "top-right",
+            autoClose: 3000,
+          });
+          setTimeout(() => {
+            const email = formData.email;
+            navigateWithLoading(`/auth/verify-email?email=${encodeURIComponent(email)}`);
+          }, 800);
+          return;
         }
-      }, 1000); // Wait 1 second for toast visibility
+        // Hide loading
+        hideLoading();
+        
+        // Show success toast
+        toast.success('Login successful!', {
+          position: "top-right",
+          autoClose: 2000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+        
+        // Update store for UI
+        setAuthenticated(true);
+        setUser({
+          id: data?.id,
+          email: data?.email,
+          fullName: data?.fullName,
+          role: data?.role,
+          goalCode: data?.goalCode ?? null,
+          status: data?.status,
+          imageUrl: data?.imageUrl,
+          dateOfBirth: data?.dateOfBirth,
+          address: data?.address,
+          phone: data?.phone,
+        });
+
+        // Wait for toast to show, then redirect
+        setTimeout(() => {
+          navigateWithLoading('/');
+        }, 1000); // Wait 1 second for toast visibility
+      } else {
+        throw new Error(response.message || 'Login failed');
+      }
       
-    } catch (err) {
+    } catch (err: any) {
       // Hide loading
       hideLoading();
       
@@ -86,7 +107,7 @@ function LoginForm() {
         draggable: true,
       });
       
-      setError('Login failed. Please try again.');
+      setError(err.message || 'Login failed. Please try again.');
     }
   };
 
@@ -143,7 +164,7 @@ function LoginForm() {
 
           <div>
             <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-3">
-              Email Address
+              Email
             </label>
             <input
               type="email"
@@ -171,6 +192,11 @@ function LoginForm() {
               className="w-full px-5 py-4 border-2 border-gray-200 rounded-2xl focus:ring-3 focus:ring-emerald-200 focus:border-emerald-400 transition-all duration-300 bg-gray-50/50 focus:bg-white text-gray-800 placeholder-gray-400 shadow-sm hover:shadow-md"
               placeholder="Enter your password"
             />
+            <div className="mt-3 text-right">
+              <Link href="/auth/forgot-password" className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">
+                Forgot your password?
+              </Link>
+            </div>
           </div>
 
           <button

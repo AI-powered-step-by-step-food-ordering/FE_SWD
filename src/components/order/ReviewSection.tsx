@@ -1,8 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { usePageLoading } from '@/hooks/usePageLoading';
 import { toast } from 'react-toastify';
+import { orderService, storeService } from '@/services';
+import { getStoredUser } from '@/lib/auth-utils';
 
 interface NutritionInfo {
   calories: number;
@@ -33,12 +36,58 @@ interface ReviewSectionProps {
 
 export default function ReviewSection({ selectedItems, totalPrice, totalNutrition }: ReviewSectionProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [stores, setStores] = useState<any[]>([]);
+  const [selectedStore, setSelectedStore] = useState<string>('');
+  const [pickupTime, setPickupTime] = useState<string>('');
+  const [notes, setNotes] = useState<string>('');
   const { showLoading, hideLoading, navigateWithLoading } = usePageLoading();
+  const router = useRouter();
+
+  // Load stores on component mount
+  useEffect(() => {
+    const loadStores = async () => {
+      try {
+        const response = await storeService.getAll();
+        if (response.success) {
+          setStores(response.data);
+          if (response.data.length > 0) {
+            setSelectedStore(response.data[0].id);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading stores:', error);
+      }
+    };
+    loadStores();
+  }, []);
+
+  const normalizeDateToISO = (value?: string) => {
+    if (!value) return undefined;
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) {
+      return new Date(value + ':00Z').toISOString();
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return new Date(value + 'T00:00:00Z').toISOString();
+    }
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(value)) {
+      return new Date(value + 'Z').toISOString();
+    }
+    try {
+      return new Date(value).toISOString();
+    } catch (_) {
+      return undefined;
+    }
+  };
 
   const handleSubmitOrder = async () => {
     // Prevent double submission with early return
     if (isSubmitting) {
       console.log('Already submitting, ignoring click');
+      return;
+    }
+
+    if (!selectedStore) {
+      toast.error('Please select a store');
       return;
     }
     
@@ -51,42 +100,43 @@ export default function ReviewSection({ selectedItems, totalPrice, totalNutritio
         autoClose: 1500,
       });
 
-      // Shorter delay for better perceived performance
-      await new Promise(resolve => setTimeout(resolve, 1200));
-      
-      // Save order to history
-      const newOrder = {
-        id: `ORD-${Date.now()}`,
-        date: new Date().toISOString(),
-        items: selectedItems,
-        totalPrice,
-        totalNutrition,
-        goal: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).goal || 'maintenance' : 'maintenance',
-        status: 'preparing' as const,
-        deliveryTime: '20-25 mins'
+      // Get user data
+      const user = getStoredUser();
+      if (!user) {
+        throw new Error('User not found. Please login again.');
+      }
+
+      // Create order via API
+      const orderData = {
+        storeId: selectedStore,
+        pickupAt: normalizeDateToISO(pickupTime),
+        note: notes,
+        userId: user.id || user.email
       };
+
+      const response = await orderService.create(orderData);
       
-      const existingOrders = JSON.parse(localStorage.getItem('orderHistory') || '[]');
-      const updatedOrders = [newOrder, ...existingOrders];
-      localStorage.setItem('orderHistory', JSON.stringify(updatedOrders));
+      if (response.success) {
+        // Show success toast
+        toast.success('✅ Order created! Going to customization...', {
+          position: "top-right",
+          autoClose: 1200,
+        });
+        
+        // Redirect to bowl customization
+        setTimeout(() => {
+          router.push(`/order/${response.data.id}/customize`);
+        }, 600);
+      } else {
+        throw new Error(response.message || 'Failed to create order');
+      }
       
-      // Show success toast
-      toast.success('✅ Order created! Going to checkout...', {
-        position: "top-right",
-        autoClose: 1200,
-      });
-      
-      // Use the original loading system but with optimized timing
-      setTimeout(() => {
-        navigateWithLoading(`/checkout?orderId=${newOrder.id}`);
-      }, 600);
-      
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting order:', error);
       setIsSubmitting(false);
       
       // Show error toast
-      toast.error('❌ Failed to create order. Please try again.', {
+      toast.error(error?.response?.data?.message || '❌ Failed to create order. Please try again.', {
         position: "top-right",
         autoClose: 3000,
       });
@@ -95,7 +145,60 @@ export default function ReviewSection({ selectedItems, totalPrice, totalNutritio
   return (
     <div className="bg-white rounded-2xl p-6 shadow-lg">
       <h2 className="text-2xl font-bold text-gray-900 mb-6">Review Your Bowl</h2>
+      
+      {/* Order Details Form */}
+      <div className="mb-6 space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Select Store *
+          </label>
+          <select
+            value={selectedStore}
+            onChange={(e) => setSelectedStore(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            <option value="">Choose a store</option>
+            {stores.map((store) => (
+              <option key={store.id} value={store.id}>
+                {store.name} - {store.address}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Pickup Time
+          </label>
+          <input
+            type="datetime-local"
+            value={pickupTime}
+            onChange={(e) => setPickupTime(e.target.value)}
+            min={new Date().toISOString().slice(0, 16)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <p className="mt-1 text-sm text-gray-500">
+            Leave empty for ASAP pickup
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Special Instructions
+          </label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            placeholder="Any special requests or notes for your order..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+        </div>
+      </div>
+
+      {/* Selected Items */}
       <div className="space-y-4 mb-6">
+        <h3 className="text-lg font-semibold text-gray-900">Selected Items</h3>
         {Object.entries(selectedItems).map(([category, item]) => (
           item && (
             <div key={category} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -147,7 +250,7 @@ export default function ReviewSection({ selectedItems, totalPrice, totalNutritio
               <span>Creating Order...</span>
             </>
           ) : (
-            <span>🛒 Proceed to Checkout</span>
+            <span>🍽️ Create Order & Customize Bowl</span>
           )}
         </div>
       </button>

@@ -12,6 +12,9 @@ interface FormData {
   email: string;
   password: string;
   confirmPassword: string;
+  goalCode: string;
+  dateOfBirth: string;
+  phone: string;
 }
 
 export default function RegisterPage() {
@@ -19,7 +22,10 @@ export default function RegisterPage() {
     name: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    goalCode: 'MAINTAIN_WEIGHT',
+    dateOfBirth: '',
+    phone: ''
   });
   const [error, setError] = useState('');
   const router = useRouter();
@@ -30,6 +36,10 @@ export default function RegisterPage() {
     
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
+      toast.error('❌ Passwords do not match!', {
+        position: "top-right",
+        autoClose: 2000,
+      });
       return;
     }
 
@@ -39,44 +49,48 @@ export default function RegisterPage() {
     showLoading();
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Store user data
-      const userData = {
-        name: formData.name,
+      // Call real API with proper payload structure
+      const { authService } = await import('@/services');
+      const response = await authService.register({
+        role: 'USER', // Default role
+        fullName: formData.name,
         email: formData.email,
-        joinDate: new Date().toISOString(),
-        orderHistory: []
-      };
-      
-      localStorage.setItem('user', JSON.stringify(userData));
-      localStorage.setItem('isAuthenticated', 'true');
-      
-      // Hide loading
-      hideLoading();
-      
-      // Show success toast
-      toast.success('🎉 Registration successful! Welcome to Fresh Bowl!', {
-        position: "top-right",
-        autoClose: 2000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
+        password: formData.password,
+        passwordConfirm: formData.confirmPassword,
+        goalCode: formData.goalCode,
+        dateOfBirth: formData.dateOfBirth,
+        phone: formData.phone
       });
+
+      if (response.success) {
+        // Hide loading
+        hideLoading();
+        
+        // Show success toast with verification message
+        toast.success('🎉 Registration successful! Please check your email to verify your account.', {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+        
+        // Redirect to verification page with email parameter
+        setTimeout(() => {
+          navigateWithLoading(`/auth/verify-email?email=${encodeURIComponent(formData.email)}`);
+        }, 2000);
+      } else {
+        throw new Error(response.message || 'Registration failed');
+      }
       
-      // Wait for toast to show, then redirect
-      setTimeout(() => {
-        navigateWithLoading('/');
-      }, 1000); // Wait 1 second for toast visibility
-      
-    } catch (err) {
+    } catch (err: any) {
       // Hide loading
       hideLoading();
       
-      // Show error toast
-      toast.error('❌ Registration failed! Please try again.', {
+      // Show error toast with specific message
+      const errorMessage = err?.response?.data?.message || err?.message || 'Registration failed! Please try again.';
+      toast.error(`❌ ${errorMessage}`, {
         position: "top-right",
         autoClose: 3000,
         hideProgressBar: false,
@@ -85,11 +99,11 @@ export default function RegisterPage() {
         draggable: true,
       });
       
-      setError('Registration failed. Please try again.');
+      setError(errorMessage);
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData(prev => ({
       ...prev,
       [e.target.name]: e.target.value
@@ -131,8 +145,8 @@ export default function RegisterPage() {
               </div>
             )}
 
-            <div className="space-y-6">
-              <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-1">
                 <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-3">
                   Full Name
                 </label>
@@ -148,7 +162,7 @@ export default function RegisterPage() {
                 />
               </div>
 
-              <div>
+              <div className="md:col-span-1">
                 <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-3">
                   Email Address
                 </label>
@@ -164,7 +178,7 @@ export default function RegisterPage() {
                 />
               </div>
 
-              <div>
+              <div className="md:col-span-1">
                 <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-3">
                   Password
                 </label>
@@ -180,7 +194,7 @@ export default function RegisterPage() {
                 />
               </div>
 
-              <div>
+              <div className="md:col-span-1">
                 <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-700 mb-3">
                   Confirm Password
                 </label>
@@ -193,6 +207,53 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   className="w-full px-5 py-4 border-2 border-gray-200 rounded-2xl focus:ring-3 focus:ring-emerald-200 focus:border-emerald-400 transition-all duration-300 bg-gray-50/50 focus:bg-white text-gray-800 placeholder-gray-400 shadow-sm hover:shadow-md"
                   placeholder="Confirm your password"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label htmlFor="goalCode" className="block text-sm font-semibold text-gray-700 mb-3">
+                  Health Goal
+                </label>
+                <select
+                  id="goalCode"
+                  name="goalCode"
+                  value={formData.goalCode}
+                  onChange={handleChange}
+                  className="w-full px-5 py-4 border-2 border-gray-200 rounded-2xl focus:ring-3 focus:ring-emerald-200 focus:border-emerald-400 transition-all duration-300 bg-gray-50/50 focus:bg-white text-gray-800 shadow-sm hover:shadow-md"
+                >
+                  <option value="MAINTAIN_WEIGHT">⚖️ Maintain Weight</option>
+                  <option value="LOSE_WEIGHT">🔥 Lose Weight</option>
+                  <option value="GAIN_WEIGHT">💪 Gain Weight</option>
+                  <option value="BUILD_MUSCLE">🏋️‍♂️ Build Muscle</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-1">
+                <label htmlFor="dateOfBirth" className="block text-sm font-semibold text-gray-700 mb-3">
+                  Date of Birth
+                </label>
+                <input
+                  type="date"
+                  id="dateOfBirth"
+                  name="dateOfBirth"
+                  value={formData.dateOfBirth}
+                  onChange={handleChange}
+                  className="w-full px-5 py-4 border-2 border-gray-200 rounded-2xl focus:ring-3 focus:ring-emerald-200 focus:border-emerald-400 transition-all duration-300 bg-gray-50/50 focus:bg-white text-gray-800 shadow-sm hover:shadow-md"
+                />
+              </div>
+
+              <div className="md:col-span-1">
+                <label htmlFor="phone" className="block text-sm font-semibold text-gray-700 mb-3">
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  id="phone"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  className="w-full px-5 py-4 border-2 border-gray-200 rounded-2xl focus:ring-3 focus:ring-emerald-200 focus:border-emerald-400 transition-all duration-300 bg-gray-50/50 focus:bg-white text-gray-800 placeholder-gray-400 shadow-sm hover:shadow-md"
+                  placeholder="Enter your phone number"
                 />
               </div>
 

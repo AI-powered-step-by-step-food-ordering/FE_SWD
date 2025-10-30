@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { usePageLoading } from '@/hooks/usePageLoading';
+import { useAuthStore } from '@/store/auth.store';
+import { clearAuthCookies, isAuthenticatedViaCookie, getStoredUser } from '@/lib/auth-utils';
+import { authService } from '@/services';
 
 interface HeaderProps {
   totalPrice?: number;
@@ -15,12 +18,15 @@ export default function Header({ totalPrice = 0, totalCalories = 0, showPriceInf
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const { navigateWithLoading } = usePageLoading();
+  const hydrateFromCookies = useAuthStore(s => s.hydrateFromCookies);
+  const storeUser = useAuthStore(s => s.user);
+  const storeIsAuth = useAuthStore(s => s.isAuthenticated);
+  const clearStore = useAuthStore(s => s.clear);
 
   const handleOrderNavigation = () => {
-    const authStatus = localStorage.getItem('isAuthenticated');
-    const userData = localStorage.getItem('user');
-    
-    if (authStatus !== 'true' || !userData) {
+    const authed = isAuthenticatedViaCookie();
+    const u = getStoredUser();
+    if (!authed || !u) {
       // Redirect to login with order redirect param
       navigateWithLoading('/auth/login?from=order');
     } else {
@@ -30,14 +36,13 @@ export default function Header({ totalPrice = 0, totalCalories = 0, showPriceInf
   };
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    const authStatus = localStorage.getItem('isAuthenticated');
-    
-    if (authStatus === 'true' && userData) {
-      setUser(JSON.parse(userData));
-      setIsAuthenticated(true);
-    }
-  }, []);
+    hydrateFromCookies();
+  }, [hydrateFromCookies]);
+
+  useEffect(() => {
+    setUser(storeUser);
+    setIsAuthenticated(storeIsAuth);
+  }, [storeUser, storeIsAuth]);
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -111,9 +116,9 @@ export default function Header({ totalPrice = 0, totalCalories = 0, showPriceInf
           {/* Navigation Menu */}
           <nav className="hidden md:flex items-center space-x-1 lg:space-x-2">
             <button onClick={() => navigateWithLoading('/')} className="px-4 py-2 text-gray-700 hover:text-green-600 hover:bg-white/60 rounded-lg transition-all duration-300 text-sm lg:text-base font-semibold hover:scale-105 hover:shadow-md backdrop-blur-sm">Home</button>
-            <a href="#plans" className="px-4 py-2 text-gray-700 hover:text-green-600 hover:bg-white/60 rounded-lg transition-all duration-300 text-sm lg:text-base font-semibold hover:scale-105 hover:shadow-md backdrop-blur-sm">Our Subscriptions</a>
-            <a className="px-4 py-2 text-gray-700 hover:text-green-600 hover:bg-white/60 rounded-lg transition-all duration-300 text-sm lg:text-base font-semibold hover:scale-105 hover:shadow-md backdrop-blur-sm" href="#about">About Us</a>
-            <a className="px-4 py-2 text-gray-700 hover:text-green-600 hover:bg-white/60 rounded-lg transition-all duration-300 text-sm lg:text-base font-semibold hover:scale-105 hover:shadow-md backdrop-blur-sm" href="#contact">Contact Us</a>
+            {/* <a href="#plans" className="px-4 py-2 text-gray-700 hover:text-green-600 hover:bg-white/60 rounded-lg transition-all duration-300 text-sm lg:text-base font-semibold hover:scale-105 hover:shadow-md backdrop-blur-sm">Our Subscriptions</a> */}
+            <button onClick={() => navigateWithLoading('/about')} className="px-4 py-2 text-gray-700 hover:text-green-600 hover:bg-white/60 rounded-lg transition-all duration-300 text-sm lg:text-base font-semibold hover:scale-105 hover:shadow-md backdrop-blur-sm">About Us</button>
+            <button onClick={() => navigateWithLoading('/contact')} className="px-4 py-2 text-gray-700 hover:text-green-600 hover:bg-white/60 rounded-lg transition-all duration-300 text-sm lg:text-base font-semibold hover:scale-105 hover:shadow-md backdrop-blur-sm">Contact Us</button>
             <button onClick={handleOrderNavigation} className="px-4 py-2 text-gray-700 hover:text-green-600 hover:bg-white/60 rounded-lg transition-all duration-300 text-sm lg:text-base font-semibold hover:scale-105 hover:shadow-md backdrop-blur-sm">Order Now</button>
           </nav>
           
@@ -165,8 +170,8 @@ export default function Header({ totalPrice = 0, totalCalories = 0, showPriceInf
                   <div className="py-2">
                     {/* User Info */}
                     <div className="px-4 py-3 border-b border-gray-100">
-                      <p className="text-sm font-medium text-gray-900">{user.name}</p>
-                      <p className="text-xs text-gray-500">{user.email}</p>
+                      <p className="text-sm font-medium text-gray-900">{user.fullName}</p>
+                      {/* <p className="text-xs text-gray-500">{user.email}</p> */}
                     </div>
                     
                     {/* Menu Items */}
@@ -197,11 +202,12 @@ export default function Header({ totalPrice = 0, totalCalories = 0, showPriceInf
                     </button>
                     
                     <button 
-                      onClick={() => {
+                      onClick={async () => {
                         setIsProfileDropdownOpen(false);
-                        localStorage.removeItem('user');
-                        localStorage.removeItem('isAuthenticated');
-                        window.location.href = '/';
+                        try { await authService.logout(); } catch (_) {}
+                        clearAuthCookies();
+                        clearStore();
+                        navigateWithLoading('/');
                       }}
                       className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors border-t border-gray-100"
                     >

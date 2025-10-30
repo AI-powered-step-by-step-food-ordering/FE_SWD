@@ -8,6 +8,7 @@ import NextTopLoader from "nextjs-toploader";
 import type { PropsWithChildren } from "react";
 import LoadingProvider from "@/components/shared/LoadingProvider";
 import { ToastContainer } from 'react-toastify';
+import AuthDebug from "@/components/debug/AuthDebug";
 
 export const metadata: Metadata = {
   title: {
@@ -52,6 +53,7 @@ export default function RootLayout({ children }: PropsWithChildren) {
               pauseOnHover
               theme="light"
             />
+            {/* <AuthDebug /> */}
           </LoadingProvider>
       </body>
     </html>
