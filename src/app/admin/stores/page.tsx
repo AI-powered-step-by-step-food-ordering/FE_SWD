@@ -1,11 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import AdminLayout from '@/components/admin/AdminLayout';
+import dynamic from 'next/dynamic';
 import apiClient from '@/services/api.config';
+import { getFirebaseThumbnail } from '@/lib/firebase-storage';
 import type { Store, StoreRequest } from '@/types/api';
 import { toast } from 'react-toastify';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+
+const FirebaseImageUpload = dynamic(() => import('@/components/shared/FirebaseImageUpload'), {
+  ssr: false
+});
 
 export default function StoresPage() {
   useRequireAdmin();
@@ -20,6 +27,7 @@ export default function StoresPage() {
     email: '',
     isActive: true,
     openingHours: '',
+    imageUrl: '',
   });
 
   useEffect(() => {
@@ -60,19 +68,6 @@ export default function StoresPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this store?')) return;
-    
-    try {
-      await apiClient.delete(`/api/stores/delete/${id}`);
-      toast.success('Store deleted successfully');
-      loadStores();
-    } catch (error) {
-      console.error('Failed to delete store:', error);
-      toast.error('Failed to delete store');
-    }
-  };
-
   const handleEdit = (store: Store) => {
     setEditingStore(store);
     setFormData({
@@ -82,6 +77,7 @@ export default function StoresPage() {
       email: store.email,
       isActive: store.isActive,
       openingHours: store.openingHours || '',
+      imageUrl: store.imageUrl || '',
     });
     setShowModal(true);
   };
@@ -95,6 +91,7 @@ export default function StoresPage() {
       email: '',
       isActive: true,
       openingHours: '',
+      imageUrl: '',
     });
   };
 
@@ -140,7 +137,22 @@ export default function StoresPage() {
             stores.map((store) => (
               <div key={store.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
+                    <div className="flex-1">
+                      {store.imageUrl ? (
+                        <div className="mb-3">
+                          <Image
+                            src={getFirebaseThumbnail(store.imageUrl)}
+                            alt={store.name}
+                            width={200}
+                            height={120}
+                            className="w-full h-32 object-cover rounded-lg"
+                          />
+                        </div>
+                      ) : (
+                        <div className="mb-3 w-full h-32 bg-gray-200 rounded-lg flex items-center justify-center">
+                          <span className="text-gray-400 text-sm">No image</span>
+                        </div>
+                      )}
                     <div className="flex items-center gap-2 mb-2">
                       <h3 className="text-lg font-semibold text-gray-900">{store.name}</h3>
                       <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
@@ -192,12 +204,6 @@ export default function StoresPage() {
                   >
                     Edit
                   </button>
-                  <button
-                    onClick={() => handleDelete(store.id)}
-                    className="flex-1 px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
-                  >
-                    Delete
-                  </button>
                 </div>
               </div>
             ))
@@ -219,6 +225,20 @@ export default function StoresPage() {
                   </h3>
 
                   <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Store Image
+                      </label>
+                      <FirebaseImageUpload
+                         value={formData.imageUrl}
+                         onChange={(url) => setFormData({ ...formData, imageUrl: url })}
+                         folder="stores"
+                         label="Store Image"
+                         maxSizeMB={5}
+                         showPreview={true}
+                       />
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Name *

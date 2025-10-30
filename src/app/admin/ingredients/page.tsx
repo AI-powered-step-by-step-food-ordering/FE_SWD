@@ -5,8 +5,9 @@ import Image from 'next/image';
 import AdminLayout from '@/components/admin/AdminLayout';
 import FirebaseImageUpload from '@/components/shared/FirebaseImageUpload';
 import apiClient from '@/services/api.config';
+import ingredientService from '@/services/ingredient.service';
 import { getFirebaseThumbnail } from '@/lib/firebase-storage';
-import type { Ingredient, IngredientRequest, Category } from '@/types/api';
+import type { Ingredient, IngredientRequest, Category } from '@/types/api.types';
 import { toast } from 'react-toastify';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 
@@ -17,9 +18,11 @@ export default function IngredientsPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
   const [formData, setFormData] = useState<IngredientRequest>({
     name: '',
     unit: 'g',
+    standardQuantity: 100,
     unitPrice: 0,
     categoryId: '',
     imageUrl: '',
@@ -27,16 +30,19 @@ export default function IngredientsPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [showInactive]);
 
   const loadData = async () => {
     try {
       setLoading(true);
       const [ingredientsRes, categoriesRes] = await Promise.all([
-        apiClient.get<{ data: Ingredient[] }>('/api/ingredients/getall'),
+        showInactive 
+          ? ingredientService.getInactive()
+          : ingredientService.getActive(),
         apiClient.get<{ data: Category[] }>('/api/categories/getall'),
       ]);
-      setIngredients(ingredientsRes.data?.data || []);
+      
+      setIngredients(ingredientsRes.data || []);
       setCategories(categoriesRes.data?.data || []);
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -67,16 +73,29 @@ export default function IngredientsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this ingredient?')) return;
+  const handleSoftDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to soft delete this ingredient?')) return;
     
     try {
-      await apiClient.delete(`/api/ingredients/delete/${id}`);
-      toast.success('Ingredient deleted successfully');
+      await ingredientService.softDelete(id);
+      toast.success('Ingredient soft deleted successfully');
       loadData();
     } catch (error) {
-      console.error('Failed to delete ingredient:', error);
-      toast.error('Failed to delete ingredient');
+      console.error('Failed to soft delete ingredient:', error);
+      toast.error('Failed to soft delete ingredient');
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    if (!confirm('Are you sure you want to restore this ingredient?')) return;
+    
+    try {
+      await ingredientService.restore(id);
+      toast.success('Ingredient restored successfully');
+      loadData();
+    } catch (error) {
+      console.error('Failed to restore ingredient:', error);
+      toast.error('Failed to restore ingredient');
     }
   };
 
@@ -85,6 +104,7 @@ export default function IngredientsPage() {
     setFormData({
       name: ingredient.name,
       unit: ingredient.unit,
+      standardQuantity: ingredient.standardQuantity,
       unitPrice: ingredient.unitPrice,
       categoryId: ingredient.categoryId,
       imageUrl: ingredient.imageUrl || '',
@@ -97,6 +117,7 @@ export default function IngredientsPage() {
     setFormData({
       name: '',
       unit: 'g',
+      standardQuantity: 100,
       unitPrice: 0,
       categoryId: '',
       imageUrl: '',
@@ -122,7 +143,29 @@ export default function IngredientsPage() {
             <h2 className="text-2xl font-bold text-gray-800">Ingredients</h2>
             <p className="text-sm text-gray-600 mt-1">Manage all ingredients in the system</p>
           </div>
-          <button
+          <div className="flex items-center gap-4">
+            {/* Toggle for Active/Inactive */}
+            <div className="flex items-center gap-2">
+              <span className={`text-sm ${!showInactive ? 'font-medium text-green-600' : 'text-gray-500'}`}>
+                Active
+              </span>
+              <button
+                onClick={() => setShowInactive(!showInactive)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  showInactive ? 'bg-red-600' : 'bg-green-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    showInactive ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className={`text-sm ${showInactive ? 'font-medium text-red-600' : 'text-gray-500'}`}>
+                Inactive
+              </span>
+            </div>
+            <button
             onClick={() => {
               resetForm();
               setShowModal(true);
@@ -134,6 +177,7 @@ export default function IngredientsPage() {
             </svg>
             Add Ingredient
           </button>
+          </div>
         </div>
 
         {/* Ingredients Grid */}
@@ -183,24 +227,43 @@ export default function IngredientsPage() {
                       <span className="font-medium text-gray-900">{ingredient.unit}</span>
                     </div>
                     <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Standard Qty:</span>
+                      <span className="font-medium text-gray-900">{ingredient.standardQuantity}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Price:</span>
                       <span className="font-medium text-green-600">${ingredient.unitPrice.toFixed(2)}</span>
                     </div>
                   </div>
 
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => handleEdit(ingredient)}
-                      className="flex-1 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(ingredient.id)}
-                      className="flex-1 px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
-                    >
-                      Delete
-                    </button>
+                    {ingredient.status === 'DELETED' ? (
+                      // Deleted ingredients: Restore, Delete
+                      <>
+                        <button
+                          onClick={() => handleRestore(ingredient.id)}
+                          className="flex-1 px-3 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium"
+                        >
+                          Restore
+                        </button>
+                      </>
+                    ) : (
+                      // Active ingredients: Edit, Soft Delete
+                      <>
+                        <button
+                          onClick={() => handleEdit(ingredient)}
+                          className="flex-1 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleSoftDelete(ingredient.id)}
+                          className="flex-1 px-3 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors text-sm font-medium"
+                        >
+                          Soft Delete
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -273,6 +336,20 @@ export default function IngredientsPage() {
                         <option value="oz">Ounces (oz)</option>
                         <option value="lb">Pounds (lb)</option>
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Standard Quantity *
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        value={formData.standardQuantity}
+                        onChange={(e) => setFormData({ ...formData, standardQuantity: parseFloat(e.target.value) })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
                     </div>
 
                     <div>

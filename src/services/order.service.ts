@@ -1,5 +1,5 @@
 import apiClient from './api.config';
-import { ApiResponse, Order, OrderRequest } from '@/types/api.types';
+import { ApiResponse, Order, OrderRequest, UpdateOrderStatusRequest } from '@/types/api.types';
 
 class OrderService {
   /**
@@ -102,12 +102,21 @@ class OrderService {
   }
 
   /**
+   * Update order status with push notification
+   */
+  async updateStatus(id: string, statusData: UpdateOrderStatusRequest): Promise<ApiResponse<Order>> {
+    const response = await apiClient.put<ApiResponse<Order>>(
+      `/api/orders/${id}/status`,
+      statusData
+    );
+    return response.data;
+  }
+
+  /**
    * Recalculate order totals
    */
   async recalculate(id: string): Promise<ApiResponse<Order>> {
-    const response = await apiClient.post<ApiResponse<Order>>(
-      `/api/orders/recalc/${id}`
-    );
+    const response = await apiClient.post<ApiResponse<Order>>(`/api/orders/recalc/${id}`);
     return response.data;
   }
 }

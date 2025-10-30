@@ -63,19 +63,6 @@ export default function PromotionsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this promotion?')) return;
-    
-    try {
-      await apiClient.delete(`/api/promotions/delete/${id}`);
-      toast.success('Promotion deleted successfully');
-      loadPromotions();
-    } catch (error) {
-      console.error('Failed to delete promotion:', error);
-      toast.error('Failed to delete promotion');
-    }
-  };
-
   const handleEdit = (promotion: Promotion) => {
     setEditingPromotion(promotion);
     setFormData({
@@ -205,12 +192,6 @@ export default function PromotionsPage() {
                     className="flex-1 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
                   >
                     Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(promotion.id)}
-                    className="flex-1 px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
-                  >
-                    Delete
                   </button>
                 </div>
               </div>

@@ -41,6 +41,54 @@ class CategoryService {
   }
 
   /**
+   * Soft delete category (Admin only) - Sets isActive to false
+   */
+  async softDelete(id: string): Promise<ApiResponse<Category>> {
+    // Get current category data
+    const categoryResponse = await this.getById(id);
+    if (!categoryResponse.success || !categoryResponse.data) {
+      throw new Error('Category not found');
+    }
+
+    const categoryData: CategoryRequest = {
+      name: categoryResponse.data.name,
+      kind: categoryResponse.data.kind,
+      displayOrder: categoryResponse.data.displayOrder,
+      isActive: false // Set to inactive
+    };
+
+    const response = await apiClient.put<ApiResponse<Category>>(
+      `/api/categories/update/${id}`,
+      categoryData
+    );
+    return response.data;
+  }
+
+  /**
+   * Restore soft-deleted category (Admin only) - Sets isActive to true
+   */
+  async restore(id: string): Promise<ApiResponse<Category>> {
+    // Get current category data
+    const categoryResponse = await this.getById(id);
+    if (!categoryResponse.success || !categoryResponse.data) {
+      throw new Error('Category not found');
+    }
+
+    const categoryData: CategoryRequest = {
+      name: categoryResponse.data.name,
+      kind: categoryResponse.data.kind,
+      displayOrder: categoryResponse.data.displayOrder,
+      isActive: true // Set to active
+    };
+
+    const response = await apiClient.put<ApiResponse<Category>>(
+      `/api/categories/update/${id}`,
+      categoryData
+    );
+    return response.data;
+  }
+
+  /**
    * Delete category (Admin only)
    */
   async delete(id: string): Promise<ApiResponse<Record<string, never>>> {
@@ -48,6 +96,21 @@ class CategoryService {
       `/api/categories/delete/${id}`
     );
     return response.data;
+  }
+
+  /**
+   * Get inactive categories (Admin only)
+   */
+  async getInactive(): Promise<ApiResponse<Category[]>> {
+    const response = await this.getAll();
+    if (response.success && response.data) {
+      const inactiveCategories = response.data.filter((cat) => !cat.isActive);
+      return {
+        ...response,
+        data: inactiveCategories
+      };
+    }
+    return response;
   }
 
   /**
