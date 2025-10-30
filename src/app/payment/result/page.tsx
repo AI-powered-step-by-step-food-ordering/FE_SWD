@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { zaloPayService, orderService, paymentService } from '@/services';
 import { Order, PaymentTransaction } from '@/types/api.types';
@@ -8,7 +8,7 @@ import Link from 'next/link';
 
 type QueryStatus = 'idle' | 'loading' | 'success' | 'failed';
 
-export default function PaymentResultPage() {
+function PaymentResultContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [status, setStatus] = useState<QueryStatus>('idle');
@@ -220,6 +220,26 @@ export default function PaymentResultPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function PaymentResultPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-emerald-50 to-cyan-50 px-4">
+          <div className="max-w-2xl w-full bg-white rounded-3xl shadow-2xl p-8 sm:p-10 border border-green-100">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-10 w-10 border-2 border-green-600 border-t-transparent mx-auto mb-4" />
+              <h1 className="text-xl font-semibold text-gray-800 mb-2">Loading…</h1>
+              <p className="text-gray-600">Preparing your payment result.</p>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <PaymentResultContent />
+    </Suspense>
   );
 }
 
