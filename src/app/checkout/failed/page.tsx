@@ -1,8 +1,8 @@
 "use client";
-import React, { useEffect } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function CheckoutFailed() {
+function CheckoutFailedContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -14,5 +14,13 @@ export default function CheckoutFailed() {
   }, [router, searchParams]);
 
   return null;
+}
+
+export default function CheckoutFailed() {
+  return (
+    <Suspense fallback={null}>
+      <CheckoutFailedContent />
+    </Suspense>
+  );
 }
 

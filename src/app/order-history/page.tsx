@@ -11,13 +11,6 @@ interface Order {
   status: string;
 }
 
-// Fallback sample data (minimal fields)
-const sampleOrders: Order[] = [
-  { id: 'ORD-001', date: '2024-01-20T12:30:00Z', totalPrice: 120, status: 'COMPLETED' },
-  { id: 'ORD-002', date: '2024-01-19T13:15:00Z', totalPrice: 118, status: 'COMPLETED' },
-  { id: 'ORD-003', date: '2024-01-18T12:00:00Z', totalPrice: 142, status: 'COMPLETED' },
-];
-
 export default function OrderHistoryPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [user, setUser] = useState<any>(null);

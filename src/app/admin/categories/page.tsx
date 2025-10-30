@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import AdminLayout from "@/components/admin/AdminLayout";
-import FirebaseImageUpload from "@/components/shared/FirebaseImageUpload";
+import dynamic from "next/dynamic";
 import apiClient from '@/services/api.config';
 import { getFirebaseThumbnail } from "@/lib/firebase-storage";
 import type { Category, CategoryRequest } from "@/types/api";
@@ -11,6 +11,7 @@ import { toast } from "react-toastify";
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 
 export default function CategoriesPage() {
+  const FirebaseImageUpload = dynamic(() => import("@/components/shared/FirebaseImageUpload"), { ssr: false });
   useRequireAdmin();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
