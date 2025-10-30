@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/shared/Header';
+import { formatVND } from '@/lib/format-number';
 
 interface Order {
   id: string;
@@ -159,7 +160,7 @@ export default function OrderHistoryPage() {
               <span className="text-2xl">💰</span>
               <div>
                 <p className="text-2xl font-bold text-gray-900">
-                  {orders.reduce((sum, order) => sum + (order.totalPrice || 0), 0).toLocaleString('vi-VN')} đ
+                  {formatVND(orders.reduce((sum, order) => sum + Math.round(order.totalPrice || 0), 0))}
                 </p>
                 <p className="text-sm text-gray-600">Total Spent</p>
               </div>
@@ -208,7 +209,7 @@ export default function OrderHistoryPage() {
                           <p className="text-sm text-gray-600">{formatDate(order.date)}</p>
                         </div>
                       </div>
-                      <div className="text-sm text-gray-700">Total: {Number(order.totalPrice || 0).toLocaleString('vi-VN')} đ</div>
+                      <div className="text-sm text-gray-700">Total: {formatVND(order.totalPrice || 0)}</div>
                       {orderIdToPaymentMethod[order.id] && (
                         <div className="mt-2 text-xs inline-flex items-center px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-100">
                           Method: {orderIdToPaymentMethod[order.id]}

@@ -5,6 +5,7 @@ import { usePageLoading } from '@/hooks/usePageLoading';
 import { useAuthStore } from '@/store/auth.store';
 import { clearAuthCookies, isAuthenticatedViaCookie, getStoredUser } from '@/lib/auth-utils';
 import { authService } from '@/services';
+import { formatVND } from '@/lib/format-number';
 
 interface HeaderProps {
   totalPrice?: number;
@@ -145,11 +146,11 @@ export default function Header({ totalPrice = 0, totalCalories = 0, showPriceInf
                   </div>
                   {showPriceInfo ? (
                     <div className="hidden sm:block text-right" suppressHydrationWarning={true}>
-                      <div className="font-semibold text-sm lg:text-base text-green-600" suppressHydrationWarning={true}>₹{totalPrice}</div>
+                      <div className="font-semibold text-sm lg:text-base text-green-600" suppressHydrationWarning={true}>{formatVND(totalPrice)}</div>
                       <div className="text-xs text-gray-600" suppressHydrationWarning={true}>{totalCalories} kcal</div>
                     </div>
                   ) : (
-                    <span className="hidden sm:block font-semibold text-sm lg:text-base">₹0</span>
+                    <span className="hidden sm:block font-semibold text-sm lg:text-base">{formatVND(0)}</span>
                   )}
                 </button>
                 <div className="absolute -inset-1 bg-gradient-to-r from-green-400/20 to-green-600/20 rounded-xl blur opacity-0 group-hover:opacity-100 transition-opacity duration-300" suppressHydrationWarning={true}></div>

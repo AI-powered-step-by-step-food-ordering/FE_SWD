@@ -18,6 +18,7 @@ import {
 import { BowlTemplate, TemplateStep, Category, Ingredient, BowlItem, Store, PaymentMethod } from '@/types/api.types';
 import apiClient from '@/services/api.config';
 import Header from '@/components/shared/Header';
+import { formatVND } from '@/lib/format-number';
 import ProgressBar from '@/components/order/ProgressBar';
 import FoodSelection from '@/components/order/FoodSelection';
 import NutritionPanel from '@/components/order/NutritionPanel';
@@ -446,19 +447,33 @@ function OrderPageContent() {
 
         {/* Store Selector */}
         <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-3">Chọn cửa hàng</h2>
+          <h2 className="text-xl font-semibold mb-4">Chọn cửa hàng</h2>
           {pageLoading ? (
-            <div className="h-10 w-48 bg-gray-200 rounded animate-pulse" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {[...Array(3)].map((_,i)=>(<div key={i} className="h-20 bg-white/60 rounded-xl border border-gray-200 animate-pulse" />))}
+            </div>
           ) : stores.length ? (
-            <div className="flex flex-wrap gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {stores.map((s) => (
-                  <button
+                <button
                   key={s.id}
                   onClick={() => { setSelectedStoreId(s.id); localStorage.setItem('storeId', s.id); }}
-                  className={`px-4 py-2 rounded border ${selectedStoreId===s.id ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}
-                  >
-                  <div className="font-medium">{s.name}</div>
-                  </button>
+                  aria-pressed={selectedStoreId===s.id}
+                  className={`group text-left p-4 rounded-xl border transition-all duration-200 bg-white/70 backdrop-blur hover:shadow-md ${
+                    selectedStoreId===s.id ? 'border-green-500 ring-2 ring-green-200' : 'border-gray-200 hover:border-green-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">🏬</span>
+                    <div className="min-w-0">
+                      <div className="font-semibold truncate">{s.name}</div>
+                      <div className="text-xs text-gray-500 truncate">{(s as any).address || (s as any).description || 'Mở cửa hôm nay'}</div>
+                    </div>
+                    {selectedStoreId===s.id && (
+                      <span className="ml-auto text-xs bg-green-600 text-white px-2 py-1 rounded-full">Đang chọn</span>
+                    )}
+                  </div>
+                </button>
               ))}
             </div>
           ) : (
@@ -468,23 +483,47 @@ function OrderPageContent() {
 
         {/* Templates */}
         <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-3">Chọn Template</h2>
+          <h2 className="text-xl font-semibold mb-4">Chọn Template</h2>
           {pageLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {[...Array(3)].map((_,i)=>(<div key={i} className="h-24 bg-gray-200 rounded animate-pulse" />))}
+              {[...Array(3)].map((_,i)=>(<div key={i} className="h-28 bg-white/60 rounded-xl border border-gray-200 animate-pulse" />))}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {templates.map(t => (
-                <div key={t.id} className={`p-4 border rounded cursor-pointer ${selectedTemplate?.id===t.id?'border-green-500 bg-green-50':'border-gray-200'}`} onClick={() => onSelectTemplate(t)}>
-                  <div className="font-medium">{t.name}</div>
-                  <div className="text-sm text-gray-600">{t.description}</div>
-                </div>
+              {templates.map((t, i) => (
+                <button
+                  key={t.id}
+                  onClick={() => onSelectTemplate(t)}
+                  aria-pressed={selectedTemplate?.id===t.id}
+                  className={`text-left p-4 rounded-xl border transition-all duration-200 bg-white/70 backdrop-blur hover:shadow-md ${
+                    selectedTemplate?.id===t.id ? 'border-green-500 ring-2 ring-green-200' : 'border-gray-200 hover:border-green-300'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="text-xl">🥗</span>
+                    <div className="min-w-0">
+                      <div className="font-semibold truncate">{t.name}</div>
+                      <div className="text-sm text-gray-600 line-clamp-2">{t.description}</div>
+                    </div>
+                    {i===0 && selectedTemplate?.id!==t.id && (
+                      <span className="ml-auto text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">Gợi ý</span>
+                    )}
+                    {selectedTemplate?.id===t.id && (
+                      <span className="ml-auto text-xs bg-green-600 text-white px-2 py-1 rounded-full">Đang chọn</span>
+                    )}
+                  </div>
+                </button>
               ))}
             </div>
           )}
           <div className="mt-4">
-            <button onClick={startFlow} className="px-4 py-2 bg-green-600 text-white rounded">Bắt đầu</button>
+            <button
+              onClick={startFlow}
+              disabled={!selectedTemplate}
+              className={`px-5 py-2 rounded text-white shadow ${selectedTemplate ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-300 cursor-not-allowed'}`}
+            >
+              Bắt đầu
+            </button>
           </div>
         </div>
 
@@ -535,6 +574,7 @@ function OrderPageContent() {
                     image: i.imageUrl || '🥗',
                     description: i.description || i.unit || ''
                   }))}
+                  selectedIds={(stepSelections[templateSteps[currentStepIndex]?.id || ''] || [])}
                   onItemSelect={(_, item)=>{
                     const ing = stepIngredients.find(ii=>ii.id===item.id);
                     if (ing) addIngredient(ing);
@@ -542,11 +582,27 @@ function OrderPageContent() {
                   onSkip={nextStep}
                 />
               )}
-              <div className="flex items-center justify-between mt-6">
-                <button onClick={prevStep} className="px-4 py-2 border rounded hover:bg-white">Quay lại</button>
-                <div className="text-right text-gray-700 font-medium">Tạm tính bowl: {bowlLinePrice.toLocaleString('vi-VN')} đ</div>
-                <button onClick={nextStep} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Tiếp tục</button>
-              </div>
+              {(() => {
+                const step = templateSteps[currentStepIndex];
+                const picked = (stepSelections[step?.id || ''] || []).length;
+                const minItems = step?.minItems ?? 0;
+                const canProceed = picked >= minItems;
+                const missing = Math.max(0, (minItems || 0) - picked);
+                return (
+                  <div className="flex items-center justify-between mt-6">
+                    <button onClick={prevStep} className="px-4 py-2 border rounded hover:bg-white">Quay lại</button>
+                    <div className="text-right text-gray-700 font-medium">Tạm tính bowl: {formatVND(bowlLinePrice)}</div>
+                    <button
+                      onClick={nextStep}
+                      disabled={!canProceed}
+                      className={`px-4 py-2 rounded text-white ${canProceed ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-300 cursor-not-allowed'}`}
+                      title={!canProceed && missing ? `Cần chọn thêm ${missing} mục` : ''}
+                    >
+                      {canProceed ? 'Tiếp tục' : `Chọn thêm ${missing}`}
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Right: Sticky summary (1 col) */}
@@ -574,7 +630,7 @@ function OrderPageContent() {
                 </div>
                 <div className="p-4 border rounded bg-white/80 backdrop-blur">
                   <div className="mb-2 font-semibold">Tổng tiền</div>
-                  <div className="text-2xl font-bold text-green-700 mb-4">{orderTotal.toLocaleString('vi-VN')} đ</div>
+                  <div className="text-2xl font-bold text-green-700 mb-4">{formatVND(orderTotal)}</div>
                 <div className="mb-3">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Phương thức thanh toán</label>
                   <select

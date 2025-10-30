@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { orderService, bowlService, paymentService } from '@/services';
 import { Order, Bowl, PaymentTransaction } from '@/types/api.types';
+import { formatVND } from '@/lib/format-number';
 
 export default function OrderTrackingPage() {
   const params = useParams();
@@ -229,7 +230,7 @@ export default function OrderTrackingPage() {
                       {bowl.instruction && (
                         <p className="text-sm text-gray-600 mt-1">Note: {bowl.instruction}</p>
                       )}
-                      <p className="text-sm text-gray-600 mt-2">Price: {Number(bowl.linePrice ?? 0).toLocaleString('vi-VN')} đ</p>
+                      <p className="text-sm text-gray-600 mt-2">Price: {formatVND(bowl.linePrice ?? 0)}</p>
                     </div>
                   ))}
                 </div>
@@ -253,9 +254,7 @@ export default function OrderTrackingPage() {
                           <p className="text-sm text-gray-600">Status: {payment.status}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-bold text-green-600">
-                            {Number(payment.amount ?? 0).toLocaleString('vi-VN')} đ
-                          </p>
+                          <p className="text-lg font-bold text-green-600">{formatVND(payment.amount ?? 0)}</p>
                         </div>
                       </div>
                     </div>
@@ -270,15 +269,15 @@ export default function OrderTrackingPage() {
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Subtotal:</span>
-                  <span className="font-medium">{Number(order.subtotalAmount ?? 0).toLocaleString('vi-VN')} đ</span>
+                  <span className="font-medium">{formatVND(order.subtotalAmount ?? 0)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Promotion:</span>
-                  <span className="font-medium text-green-600">-{Number(order.promotionTotal ?? 0).toLocaleString('vi-VN')} đ</span>
+                  <span className="font-medium text-green-600">-{formatVND(order.promotionTotal ?? 0)}</span>
                 </div>
                 <div className="flex justify-between text-lg font-bold border-t pt-3">
                   <span>Total:</span>
-                  <span>{Number(order.totalAmount ?? 0).toLocaleString('vi-VN')} đ</span>
+                  <span>{formatVND(order.totalAmount ?? 0)}</span>
                 </div>
               </div>
             </div>

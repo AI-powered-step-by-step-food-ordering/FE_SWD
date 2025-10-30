@@ -9,6 +9,7 @@ import { userService } from '@/services';
 import { User, UserUpdateRequest } from '@/types/api.types';
 import Image from 'next/image';
 import { uploadToFirebase, validateImageFile } from '@/lib/firebase-storage';
+import { formatVND } from '@/lib/format-number';
 
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
@@ -22,6 +23,7 @@ export default function ProfilePage() {
     const [orderCount, setOrderCount] = useState<number>(0);
   const [totalSpent, setTotalSpent] = useState<number>(0);
   const [lastOrderAt, setLastOrderAt] = useState<string | null>(null);
+  const [recentOrders, setRecentOrders] = useState<Array<{ id: string; createdAt?: string; totalAmount?: number; status?: string }>>([]);
 
   const onPickFile = () => fileInputRef.current?.click();
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,6 +60,9 @@ export default function ProfilePage() {
           .filter(Boolean)
           .sort((a, b) => new Date(b as string).getTime() - new Date(a as string).getTime())[0] || null;
         setLastOrderAt(last as string | null);
+        // Recent orders preview (latest 5)
+        const sorted = [...myOrders].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        setRecentOrders(sorted.slice(0, 5).map(o => ({ id: o.id, createdAt: o.createdAt, totalAmount: o.totalAmount, status: o.status })));
       }
     } catch (e) {
       console.error('Failed to load order stats', e);
@@ -345,7 +350,7 @@ export default function ProfilePage() {
               <div className="text-sm text-blue-700">Đơn hàng đã tạo</div>
             </div>
             <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-6 text-center">
-              <div className="text-3xl font-bold text-green-600 mb-2">{totalSpent.toLocaleString('vi-VN')}₫</div>
+              <div className="text-3xl font-bold text-green-600 mb-2">{formatVND(totalSpent)}</div>
               <div className="text-sm text-green-700">Tổng đã chi</div>
             </div>
             {lastOrderAt && (
@@ -431,21 +436,28 @@ export default function ProfilePage() {
               </h2>
               
               <div className="bg-white/80 rounded-xl p-4 shadow-sm">
-                {orderCount > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                    <div>
-                      <p className="text-xs text-gray-500">Số đơn</p>
-                      <p className="text-lg font-semibold text-gray-900">{orderCount}</p>
+                {recentOrders.length > 0 ? (
+                  <>
+                    <div className="text-xs text-gray-500 mb-2">Đơn gần đây</div>
+                    <div className="space-y-2">
+                      {recentOrders.map((o) => (
+                        <div key={o.id} className="flex items-center justify-between text-sm">
+                          <div className="min-w-0 mr-2 truncate">
+                            <span className="font-medium text-gray-900">#{o.id.slice(0,8)}</span>
+                            <span className="mx-2 text-gray-400">•</span>
+                            <span className="text-gray-600">{o.createdAt ? new Date(o.createdAt).toLocaleDateString('vi-VN') : ''}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-gray-900 font-semibold">{formatVND(o.totalAmount || 0)}</span>
+                            <span className="text-xs px-2 py-0.5 rounded-full border border-gray-200 text-gray-700 bg-gray-50">{o.status}</span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Tổng chi</p>
-                      <p className="text-lg font-semibold text-gray-900">{totalSpent.toLocaleString('vi-VN')}₫</p>
+                    <div className="mt-3 text-right">
+                      <button onClick={() => router.push('/order-history')} className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Xem thêm</button>
                     </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Gần nhất</p>
-                      <p className="text-lg font-semibold text-gray-900">{lastOrderAt ? new Date(lastOrderAt).toLocaleDateString('vi-VN') : '—'}</p>
-                    </div>
-                  </div>
+                  </>
                 ) : (
                   <div className="text-center py-4">
                     <svg className="w-12 h-12 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
