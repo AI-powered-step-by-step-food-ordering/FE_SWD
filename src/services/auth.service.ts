@@ -21,33 +21,45 @@ class AuthService {
       credentials
     );
     
-    // Only store tokens if the account is verified/active
-    if (response.data.success && response.data.data) {
-      const { accessToken, refreshToken, email, fullName, id, goalCode, role, status, emailVerified } = response.data.data as AuthResponse & { emailVerified?: boolean };
+    // Normalize backend response: some environments return { status, message, data } without 'success'
+    const raw: any = response.data as any;
+    const successNormalized: boolean = typeof raw.success === 'boolean' ? raw.success : (raw.status === 200);
+    const codeNormalized: number = typeof raw.code === 'number' ? raw.code : raw.status;
+    const dataNormalized: any = raw.data ?? raw;
 
-      // Consider verified by default unless API explicitly says otherwise
+    // Only store tokens if response is successful and has tokens
+    if (successNormalized && dataNormalized) {
+      const { accessToken, refreshToken, email, fullName, id, goalCode, role, status, emailVerified } = dataNormalized as AuthResponse & { emailVerified?: boolean };
+
       const isVerified = !(emailVerified === false || status === 'PENDING_VERIFICATION');
       if (!isVerified) {
-        // Ensure no auth state is set for unverified users
         clearAuthCookies();
-        return response.data;
+        return { success: false, code: codeNormalized ?? 200, message: 'Email not verified', data: dataNormalized } as any;
       }
-      const userData = {
-        id: id || email, // Use actual user ID from API, fallback to email
-        email,
-        fullName,
-        name: fullName, // Keep both for compatibility
-        role: role || 'USER',
-        goalCode: goalCode || null,
-        status: status || 'ACTIVE',
-        createdAt: new Date().toISOString(),
-        loginTime: new Date().toISOString(),
-      };
-      // Store in cookies only
-      setAuthCookies({ accessToken, refreshToken }, userData);
+
+      if (accessToken && refreshToken) {
+        const userData = {
+          id: id || email,
+          email,
+          fullName,
+          name: fullName,
+          role: role || 'USER',
+          goalCode: goalCode || null,
+          status: status || 'ACTIVE',
+          createdAt: new Date().toISOString(),
+          loginTime: new Date().toISOString(),
+        };
+        setAuthCookies({ accessToken, refreshToken }, userData);
+      }
     }
     
-    return response.data;
+    // Return a normalized ApiResponse
+    return {
+      success: successNormalized,
+      code: codeNormalized ?? 200,
+      message: raw.message ?? '',
+      data: dataNormalized as AuthResponse,
+    } as ApiResponse<AuthResponse>;
   }
 
   /**

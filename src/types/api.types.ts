@@ -323,4 +323,12 @@ export interface InventoryRequest {
   ingredientId: string;
 }
 
+export enum PaymentMethod {
+  CARD = 'CARD',
+  CASH = 'CASH',
+  WALLET = 'WALLET',
+  TRANSFER = 'TRANSFER',
+  ZALOPAY = 'ZALOPAY',
+}
+
 

@@ -15,22 +15,32 @@ export default function OrderTrackingPage() {
   const [payments, setPayments] = useState<PaymentTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
+  const FETCH_PAYMENTS = false; // disable until payments endpoint is stable
 
   const loadOrderData = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const [orderRes, paymentsRes] = await Promise.all([
-        orderService.getById(orderId),
-        paymentService.getByOrderId(orderId)
-      ]);
-
-      if (orderRes.success) {
+      // Fetch order first (critical)
+      const orderRes = await orderService.getById(orderId);
+      if (orderRes.success && orderRes.data) {
         setOrder(orderRes.data);
-        // Load bowls for this order
         await loadBowls(orderRes.data.id);
+      } else {
+        setError(orderRes.message || 'Failed to load order');
+        setLoading(false);
+        return;
       }
-      if (paymentsRes.success) {
-        setPayments(paymentsRes.data);
+
+      // Optionally fetch payments; ignore failures
+      if (FETCH_PAYMENTS) {
+        try {
+          const paymentsRes = await paymentService.getByOrderId(orderId);
+          if (paymentsRes?.success && paymentsRes.data) {
+            setPayments(paymentsRes.data);
+          }
+        } catch (e) {
+          /* silently ignore */
+        }
       }
     } catch (err) {
       setError('Failed to load order data');
@@ -219,7 +229,7 @@ export default function OrderTrackingPage() {
                       {bowl.instruction && (
                         <p className="text-sm text-gray-600 mt-1">Note: {bowl.instruction}</p>
                       )}
-                      <p className="text-sm text-gray-600 mt-2">Price: ${bowl.linePrice.toFixed(2)}</p>
+                      <p className="text-sm text-gray-600 mt-2">Price: {Number(bowl.linePrice ?? 0).toLocaleString('vi-VN')} đ</p>
                     </div>
                   ))}
                 </div>
@@ -244,7 +254,7 @@ export default function OrderTrackingPage() {
                         </div>
                         <div className="text-right">
                           <p className="text-lg font-bold text-green-600">
-                            ${payment.amount.toFixed(2)}
+                            {Number(payment.amount ?? 0).toLocaleString('vi-VN')} đ
                           </p>
                         </div>
                       </div>
@@ -260,15 +270,15 @@ export default function OrderTrackingPage() {
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Subtotal:</span>
-                  <span className="font-medium">${order.subtotalAmount.toFixed(2)}</span>
+                  <span className="font-medium">{Number(order.subtotalAmount ?? 0).toLocaleString('vi-VN')} đ</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Promotion:</span>
-                  <span className="font-medium text-green-600">-${order.promotionTotal.toFixed(2)}</span>
+                  <span className="font-medium text-green-600">-{Number(order.promotionTotal ?? 0).toLocaleString('vi-VN')} đ</span>
                 </div>
                 <div className="flex justify-between text-lg font-bold border-t pt-3">
                   <span>Total:</span>
-                  <span>${order.totalAmount.toFixed(2)}</span>
+                  <span>{Number(order.totalAmount ?? 0).toLocaleString('vi-VN')} đ</span>
                 </div>
               </div>
             </div>
@@ -278,13 +288,29 @@ export default function OrderTrackingPage() {
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Actions</h2>
               <div className="space-y-3">
                 <button
-                  onClick={() => router.push('/order-history')}
+                  onClick={() => router.back()}
                   className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
-                  Back to Order History
+                  Go Back
                 </button>
                 <button
-                  onClick={() => router.push('/menu')}
+                  onClick={async () => {
+                    try {
+                      // Build a minimal reorder payload: templateId + ingredientIds
+                      const allItemsRes = await bowlService.getAllItems();
+                      const allItems = allItemsRes.success ? (allItemsRes.data || []) : [];
+                      const ingredientIds: string[] = [];
+                      for (const b of bowls) {
+                        const items = allItems.filter((it: any) => it.bowlId === b.id);
+                        for (const it of items) ingredientIds.push(it.ingredientId);
+                      }
+                      const payload = { templateId: bowls[0]?.templateId || '', ingredientIds };
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('reorderSelection', JSON.stringify(payload));
+                      }
+                    } catch {}
+                    router.push('/order');
+                  }}
                   className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
                 >
                   Order Again
