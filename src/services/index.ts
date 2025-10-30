@@ -10,6 +10,7 @@ export { default as promotionService } from './promotion.service';
 export { default as paymentService } from './payment.service';
 export { default as userService } from './user.service';
 export { default as templateStepService } from './templateStep.service';
+export { default as zaloPayService } from './zalopay.service';
 
 
 

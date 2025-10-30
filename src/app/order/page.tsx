@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/navigation';
 import { 
@@ -11,9 +12,10 @@ import {
   orderService,
   bowlService,
   paymentService,
-  storeService
+  storeService,
+  zaloPayService
 } from '@/services';
-import { BowlTemplate, TemplateStep, Category, Ingredient, BowlItem, Store } from '@/types/api.types';
+import { BowlTemplate, TemplateStep, Category, Ingredient, BowlItem, Store, PaymentMethod } from '@/types/api.types';
 import apiClient from '@/services/api.config';
 import Header from '@/components/shared/Header';
 import ProgressBar from '@/components/order/ProgressBar';
@@ -56,6 +58,7 @@ function useInitOrderPage(
 
 export default function OrderPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [templates, setTemplates] = useState<BowlTemplate[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
@@ -78,13 +81,71 @@ export default function OrderPage() {
   // Toggle to send amount in cents if backend requires integer amounts
   const USE_CENTS_FOR_PAYMENT = false;
   // Payment method selection (must match BE enum)
-  const [paymentMethod, setPaymentMethod] = useState<string>('TRANSFER');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.TRANSFER);
 
   const init = useInitOrderPage(setTemplates, setCategories, setStores, setSelectedStoreId, setPageLoading, toast);
   useEffect(() => {
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // CHỈ chạy 1 lần khi mount, không phụ thuộc biến init nữa
+
+  // Reorder param is ignored here to keep flow strictly on your Order page
+  useEffect(() => {
+    // Intentionally no-op: user builds the bowl on this page
+    // respecting your existing selection logic/UI.
+  }, [searchParams]);
+
+  // Autofill selections from order-history via localStorage payload
+  useEffect(() => {
+    const loadReorderSelection = async () => {
+      try {
+        if (typeof window === 'undefined') return;
+        const raw = localStorage.getItem('reorderSelection');
+        if (!raw) return;
+        const { templateId, ingredientIds } = JSON.parse(raw || '{}');
+        if (!templateId || !Array.isArray(ingredientIds) || ingredientIds.length === 0) {
+          localStorage.removeItem('reorderSelection');
+          return;
+        }
+
+        // Get user and store
+        const userCookie = document.cookie.split(';').find(c => c.trim().startsWith('user='))?.split('=')[1];
+        const user = userCookie ? JSON.parse(decodeURIComponent(userCookie)) : null;
+        const userId = user?.id;
+        const storeId = selectedStoreId || localStorage.getItem('storeId') || '';
+        if (!userId || !storeId) return;
+
+        // Create order and bowl with provided template
+        const pickupAt = new Date(Date.now() + 60*60*1000).toISOString();
+        const orderRes = await orderService.create({ storeId, userId, pickupAt, note: '' });
+        if (!orderRes.success) return;
+        setOrderId(orderRes.data.id);
+
+        const bowlRes = await bowlService.create({ orderId: orderRes.data.id, templateId, name: 'Healthy Bowl', instruction: '' });
+        if (!bowlRes.success) return;
+        setBowlId(bowlRes.data.id);
+
+        // Add ingredients
+        for (const ingId of ingredientIds) {
+          try {
+            const ingRes = await ingredientService.getById(ingId);
+            const unitPrice = ingRes?.success && ingRes.data?.unitPrice ? ingRes.data.unitPrice : 0;
+            await bowlService.createItem({ bowlId: bowlRes.data.id, ingredientId: ingId, quantity: 1, unitPrice });
+          } catch {}
+        }
+
+        await updateOrderTotals();
+        await refreshTotals();
+        setCurrentStepIndex(0);
+      } catch {}
+      finally {
+        try { localStorage.removeItem('reorderSelection'); } catch {}
+      }
+    };
+
+    loadReorderSelection();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStoreId]);
 
   const onSelectTemplate = async (tpl: BowlTemplate) => {
     try {
@@ -157,8 +218,24 @@ export default function OrderPage() {
     setStepLoading(false);
   };
 
+  const updateOrderTotals = async () => {
+    if (!orderId) return;
+    await orderService.recalculate(orderId);
+    const orderResp = await orderService.getById(orderId);
+    if(orderResp.success && orderResp.data) {
+      setOrderTotal(orderResp.data.totalAmount || 0);
+      // optionally update order state if you keep a copy
+    }
+  }
+
   const addIngredient = async (ing: Ingredient) => {
     if (!bowlId || currentStepIndex < 0) return;
+    // Fetch latest ingredient from backend to ensure the price is correct
+    const ingredientResp = await ingredientService.getById(ing.id);
+    if (!ingredientResp.success || !ingredientResp.data) {
+      toast.error('Không thể lấy giá nguyên liệu từ server!');
+      return;
+    }
     const step = templateSteps[currentStepIndex];
     const picked = stepSelections[step.id] || [];
     if ((step.maxItems || 1) <= 0) {
@@ -175,28 +252,22 @@ export default function OrderPage() {
         toast.error(msg);
         return;
       }
-    } catch (_) {
-      // If validation endpoint fails, continue to rely on backend error on create
-    }
-    const qty = step.defaultQty || 0;
-    const res = await bowlService.createItem({ bowlId, ingredientId: ing.id, quantity: qty, unitPrice: ing.unitPrice });
+    } catch (_) {}
+    // Use at least quantity 1 so pricing reflects correctly
+    const qty = typeof step.defaultQty === 'number' && step.defaultQty > 0 ? step.defaultQty : 1;
+    // always use snapshot price from BE
+    const res = await bowlService.createItem({ bowlId, ingredientId: ing.id, quantity: qty, unitPrice: ingredientResp.data.unitPrice });
     if (!res.success) { toast.error(res.message || 'Không thể thêm'); return; }
     setStepSelections(prev => ({ ...prev, [step.id]: [...picked, ing.id] }));
-    try { await orderService.recalculate(orderId); } catch {}
-    await refreshTotals();
+    await updateOrderTotals();
+    await refreshTotals(); // Only update items, bowlLinePrice
   };
 
   const refreshTotals = async () => {
     try {
       if (bowlId) {
         const b = await bowlService.getById(bowlId);
-        console.log('[REFRESH] Bowl getById:', b);
         if (b.success) setBowlLinePrice(b.data.linePrice || 0);
-      }
-      if (orderId) {
-        const o = await orderService.getById(orderId);
-        console.log('[REFRESH] Order getById:', o);
-        if (o.success) setOrderTotal(o.data.totalAmount || 0);
       }
       const all = await bowlService.getAllItems();
       if (all.success && bowlId) setBowlItems((all.data || []).filter((i: BowlItem) => i.bowlId === bowlId));
@@ -205,8 +276,23 @@ export default function OrderPage() {
 
   const removeItem = async (itemId: string) => {
     try {
+      // Cần xác định ingredientId của item này để update lại stepSelections
+      // bowlItems lưu toàn bộ items cho bowl, có thể tìm bằng id
+      const item = bowlItems.find(it => it.id === itemId);
+      let ingredientIdToRemove = item?.ingredientId;
       await bowlService.deleteItem(itemId);
-      try { await orderService.recalculate(orderId); } catch {}
+      // Cập nhật lại stepSelections đúng cho step hiện tại
+      setStepSelections((prev) => {
+        if (!ingredientIdToRemove) return prev;
+        const next: Record<string, string[]> = { ...prev };
+        // Remove the ingredient id from all steps where it might exist
+        Object.keys(next).forEach((sid) => {
+          const arr = next[sid] || [];
+          next[sid] = arr.filter((iid) => iid !== ingredientIdToRemove);
+        });
+        return next;
+      });
+      await updateOrderTotals();
       await refreshTotals();
       toast.success('Đã xóa nguyên liệu');
     } catch {
@@ -218,7 +304,7 @@ export default function OrderPage() {
     try {
       const payload: any = { quantity: newQty, bowlId: item.bowlId, ingredientId: item.ingredientId, unitPrice: item.unitPrice };
       await bowlService.updateItem(item.id, payload);
-      try { await orderService.recalculate(orderId); } catch {}
+      await updateOrderTotals();
       await refreshTotals();
       toast.success('Đã cập nhật số lượng');
     } catch {
@@ -246,16 +332,22 @@ export default function OrderPage() {
   const confirmOrder = async () => {
     if (!orderId) return;
     const res = await orderService.confirm(orderId);
-    if (res.success) { toast.success('Đã xác nhận đơn'); await refreshTotals(); }
+    if (res.success) {
+      toast.success('Đã xác nhận đơn');
+      await updateOrderTotals();
+      await refreshTotals();
+    }
     else toast.error(res.message || 'Xác nhận thất bại');
   };
 
   const pay = async () => {
     if (!orderId) return;
-    const amount = Number((orderTotal || 0).toFixed(2));
-    if (!amount) { toast.error('Tổng tiền chưa sẵn sàng'); return; }
+    if (!orderTotal) { toast.error('Tổng tiền chưa sẵn sàng'); return; }
     try {
-      console.debug('[PAY] start', { orderId, orderTotal, amount, USE_CENTS_FOR_PAYMENT, paymentMethod });
+      // For VND, ZaloPay expects an integer amount (in đồng)
+      const amount = Number((orderTotal || 0).toFixed(2));
+      const amountVndInteger = Math.round(orderTotal || 0);
+      console.debug('[PAY] start', { orderId, orderTotal, amount: amount, USE_CENTS_FOR_PAYMENT, paymentMethod });
       // Ensure order is confirmed before initiating payment
       try {
         const ord = await orderService.getById(orderId);
@@ -269,22 +361,39 @@ export default function OrderPage() {
             return;
           }
         }
-      } catch (_) {
-        // If check fails silently continue; BE will validate again
-        console.debug('[PAY] order status check failed, continue');
+      } catch (_) { console.debug('[PAY] order status check failed, continue'); }
+      const amountPrimary = USE_CENTS_FOR_PAYMENT ? Math.round(amount * 100) : amount;
+      // ZaloPay direct flow: create ZP order then redirect
+      if (paymentMethod === PaymentMethod.ZALOPAY) {
+        const zp = await zaloPayService.createOrder({
+          orderId,
+          amount: amountVndInteger,
+          description: `Thanh toan don ${orderId}`,
+        });
+        if (zp.success && zp.data?.orderUrl) {
+          // Optionally record pending transaction via paymentService if needed by BE
+          try { await paymentService.create({ method: 'ZALOPAY', status: 'PENDING', amount: amountVndInteger, providerTxnId: zp.data.appTransId, orderId }); } catch {}
+          window.location.href = zp.data.orderUrl;
+          return;
+        }
+        const msg = encodeURIComponent(zp.message || 'Không lấy được link ZaloPay');
+        window.location.href = `/payment/result?status=fail&orderId=${orderId}&message=${msg}`;
+        return;
       }
 
-      const amountPrimary = USE_CENTS_FOR_PAYMENT ? Math.round(amount * 100) : amount;
-      const payloadPrimary = { orderId, method: paymentMethod, amount: amountPrimary, status: 'PENDING' };
-      console.debug('[PAY] creating payment with payload', payloadPrimary);
       let pr = await paymentService.processPayment(orderId, paymentMethod, amountPrimary);
-      console.debug('[PAY] create payment response', pr);
       if (pr.success) {
+        if (paymentMethod === PaymentMethod.CASH) {
+          toast.success('Bạn đã chọn thanh toán tiền mặt. Vui lòng thanh toán tại quầy hoặc khi nhận hàng.');
+          router.push(`/payment/result?status=success&orderId=${orderId}`);
+          return;
+        }
         const url = (pr as any).data?.paymentUrl;
         if (url) {
           window.location.href = url; 
         } else {
-          toast.info('Payment created, no paymentUrl returned');
+          // Nếu là các phương thức online nhưng không có url, vẫn sang result success kèm orderId
+          router.push(`/payment/result?status=success&orderId=${orderId}`);
         }
       } else {
         // If server error and we used decimal, retry with cents (or vice versa)
@@ -292,19 +401,25 @@ export default function OrderPage() {
         const isServerError = (pr as any)?.code >= 500 || (pr as any)?.message?.toLowerCase?.().includes('internal');
         if (shouldRetryWithCents && isServerError) {
           const amountRetry = Math.round(amount * 100);
-          const payloadRetry = { orderId, method: paymentMethod, amount: amountRetry, status: 'PENDING' };
-          console.debug('[PAY] retrying with cents payload', payloadRetry);
           pr = await paymentService.processPayment(orderId, paymentMethod, amountRetry);
-          console.debug('[PAY] retry response', pr);
+          if (pr.success && paymentMethod === PaymentMethod.CASH) {
+            toast.success('Bạn đã chọn thanh toán tiền mặt. Vui lòng thanh toán tại quầy hoặc khi nhận hàng.');
+            router.push(`/payment/result?status=success&orderId=${orderId}`);
+            return;
+          }
           if (pr.success) {
             const url = (pr as any).data?.paymentUrl;
             if (url) {
               window.location.href = url;
               return;
+            } else {
+              router.push(`/payment/result?status=success&orderId=${orderId}`);
+              return;
             }
           }
         }
         toast.error(pr.message || 'Không thể tạo thanh toán');
+        router.push(`/payment/result?status=fail&orderId=${orderId}`);
       }
     } catch (e: any) {
       const errData = e?.response?.data;
@@ -317,6 +432,7 @@ export default function OrderPage() {
         method: e?.config?.method,
         data: errData,
       });
+      router.push(`/payment/result?status=fail&orderId=${orderId}`);
     }
   };
 
@@ -386,11 +502,15 @@ export default function OrderPage() {
                 {(() => {
                   const step = templateSteps[currentStepIndex];
                   const cat = categories.find(c=>c.id===step?.categoryId)?.name || '';
-                  const count = (stepSelections[step.id]||[]).length;
+                  const stepId = step?.id || '';
+                  const count = stepId ? (stepSelections[stepId]||[]).length : 0;
+                  const minItems = step?.minItems ?? 0;
+                  const maxItems = step?.maxItems ?? 0;
+                  const displayOrder = step?.displayOrder ?? (currentStepIndex + 1);
                   return (
                     <>
-                      <div className="font-semibold">Step {step.displayOrder}: {cat}</div>
-                      <div className="text-sm text-gray-600">Chọn {step.minItems}-{step.maxItems} • Đã chọn: {count}</div>
+                      <div className="font-semibold">Step {displayOrder}: {cat}</div>
+                      <div className="text-sm text-gray-600">Chọn {minItems}-{maxItems} • Đã chọn: {count}</div>
                     </>
                   );
                 })()}
@@ -459,13 +579,14 @@ export default function OrderPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Phương thức thanh toán</label>
                   <select
                     value={paymentMethod}
-                    onChange={(e)=>setPaymentMethod(e.target.value)}
+                    onChange={(e)=>setPaymentMethod(e.target.value as PaymentMethod)}
                     className="w-full px-3 py-2 border rounded"
                   >
-                    <option value="CARD">Thẻ (CARD)</option>
-                    <option value="CASH">Tiền mặt (CASH)</option>
-                    <option value="WALLET">Ví (WALLET)</option>
-                    <option value="TRANSFER">Chuyển khoản (TRANSFER)</option>
+                    <option value={PaymentMethod.CARD}>Thẻ (CARD)</option>
+                    <option value={PaymentMethod.CASH}>Tiền mặt (CASH)</option>
+                    <option value={PaymentMethod.WALLET}>Ví (WALLET)</option>
+                    <option value={PaymentMethod.TRANSFER}>Chuyển khoản (TRANSFER)</option>
+                    <option value={PaymentMethod.ZALOPAY}>ZaloPay (ZALOPAY)</option>
                   </select>
                 </div>
                   <div className="flex gap-3">

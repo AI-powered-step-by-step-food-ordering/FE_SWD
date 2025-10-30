@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { orderService, paymentService, promotionService } from '@/services';
+import { orderService, paymentService, promotionService, zaloPayService } from '@/services';
 import { Order, Promotion } from '@/types/api.types';
 
 export default function CheckoutPage() {
@@ -18,7 +18,7 @@ export default function CheckoutPage() {
   const [success, setSuccess] = useState<string>('');
 
   const [promoCode, setPromoCode] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('CREDIT_CARD');
+  const [paymentMethod, setPaymentMethod] = useState('ZALOPAY');
   const [cardDetails, setCardDetails] = useState({
     cardNumber: '',
     expiryDate: '',
@@ -79,6 +79,43 @@ export default function CheckoutPage() {
       setSubmitting(true);
       setError('');
 
+      // ZaloPay flow: create ZaloPay order on backend then redirect user
+      if (paymentMethod === 'ZALOPAY') {
+        try {
+          const amountVndInteger = Math.round((order.totalAmount as unknown as number) || 0);
+          const zaloRes = await zaloPayService.createOrder({
+            orderId,
+            amount: amountVndInteger,
+            description: `Payment for order ${orderId}`,
+          });
+
+          if (zaloRes.success && zaloRes.data?.orderUrl) {
+            // Optionally record a PENDING payment transaction in our system
+            await paymentService.create({
+              method: 'ZALOPAY',
+              status: 'PENDING',
+              amount: order.totalAmount as unknown as number,
+              providerTxnId: zaloRes.data.appTransId,
+              orderId,
+            });
+
+            // Redirect to ZaloPay payment page
+            window.location.href = zaloRes.data.orderUrl;
+            return; // Stop further local processing; user will come back via redirect
+          } else {
+            // Redirect to result with fail if BE didn't return a payment URL
+            const msg = encodeURIComponent(zaloRes.message || 'Failed to initialize ZaloPay payment');
+            window.location.href = `/payment/result?status=fail&orderId=${orderId}&message=${msg}`;
+            return;
+          }
+        } catch (e) {
+          console.error('ZaloPay init error:', e);
+          const msg = encodeURIComponent('Failed to initialize ZaloPay payment');
+          window.location.href = `/payment/result?status=fail&orderId=${orderId}&message=${msg}`;
+          return;
+        }
+      }
+
       // Create payment transaction
       const paymentData = {
         method: paymentMethod,
@@ -103,22 +140,31 @@ export default function CheckoutPage() {
               setOrder(confirmResponse.data);
               setSuccess('Payment successful! Your order has been confirmed.');
               
-              // Redirect to order tracking after 2 seconds
+              // Redirect to success page after 2 seconds
               setTimeout(() => {
-                router.push(`/order-history/${orderId}`);
+                router.push(`/payment/result?status=success&orderId=${orderId}`);
               }, 2000);
             }
           } catch (err) {
             setError('Payment processing failed');
             console.error('Error processing payment:', err);
+            setTimeout(() => {
+              router.push(`/payment/result?status=fail&orderId=${orderId}`);
+            }, 2000);
           }
         }, 2000);
       } else {
         setError('Payment failed');
+        setTimeout(() => {
+          router.push(`/payment/result?status=fail&orderId=${orderId}`);
+        }, 2000);
       }
     } catch (err) {
       setError('Payment failed');
       console.error('Error processing payment:', err);
+      setTimeout(() => {
+        router.push(`/payment/result?status=fail&orderId=${orderId}`);
+      }, 2000);
     } finally {
       setSubmitting(false);
     }
@@ -139,8 +185,8 @@ export default function CheckoutPage() {
   };
 
   const formatMoney = (value: number | null | undefined) => {
-    if (value === null || value === undefined || Number.isNaN(Number(value))) return '0.00';
-    try { return Number(value).toFixed(2); } catch { return '0.00'; }
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return '0 đ';
+    try { return `${Number(value).toLocaleString('vi-VN')} đ`; } catch { return '0 đ'; }
   };
 
   if (loading) {
@@ -231,9 +277,9 @@ export default function CheckoutPage() {
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
               >
-                <option value="CREDIT_CARD">Credit Card</option>
+                <option value="ZALOPAY">ZaloPay</option>
                 <option value="CASH">Cash</option>
-                <option value="E_WALLET">E-Wallet</option>
+                <option value="CREDIT_CARD">Credit Card</option>
               </select>
             </div>
 
@@ -305,7 +351,7 @@ export default function CheckoutPage() {
               disabled={submitting || order.status !== 'DRAFT'}
               className="w-full mt-6 px-6 py-3 bg-green-500 text-white text-lg font-semibold rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {submitting ? 'Processing Payment...' : `Pay $${formatMoney(order.totalAmount as unknown as number)}`}
+              {submitting ? 'Processing Payment...' : `Pay ${formatMoney(order.totalAmount as unknown as number)}`}
             </button>
           </div>
 
@@ -323,15 +369,15 @@ export default function CheckoutPage() {
               <div className="border-t pt-4">
                 <div className="flex justify-between text-sm mb-2">
                   <span>Subtotal:</span>
-                  <span>${formatMoney(order.subtotalAmount as unknown as number)}</span>
+                  <span>{formatMoney(order.subtotalAmount as unknown as number)}</span>
                 </div>
                 <div className="flex justify-between text-sm mb-2">
                   <span>Promotion:</span>
-                  <span className="text-green-600">-${formatMoney(order.promotionTotal as unknown as number)}</span>
+                  <span className="text-green-600">-{formatMoney(order.promotionTotal as unknown as number)}</span>
                 </div>
                 <div className="flex justify-between text-lg font-bold border-t pt-2">
                   <span>Total:</span>
-                  <span>${formatMoney(order.totalAmount as unknown as number)}</span>
+                  <span>{formatMoney(order.totalAmount as unknown as number)}</span>
                 </div>
               </div>
 

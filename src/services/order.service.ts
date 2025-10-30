@@ -11,6 +11,14 @@ class OrderService {
   }
 
   /**
+   * Get order history by user ID
+   */
+  async getOrderHistory(userId: string): Promise<ApiResponse<Order[]>> {
+    const response = await apiClient.get<ApiResponse<Order[]>>(`/api/orders/order-history/${userId}`);
+    return response.data;
+  }
+
+  /**
    * Get order by ID
    */
   async getById(id: string): Promise<ApiResponse<Order>> {
