@@ -13,3 +13,10 @@ export function standardFormat(value: number) {
     maximumFractionDigits: 2,
   });
 }
+
+// Format number as Vietnamese Đồng without decimals, with optional suffix
+export function formatVND(value: number, withSuffix: boolean = true) {
+  const rounded = Math.round(Number(value || 0));
+  const formatted = rounded.toLocaleString('vi-VN');
+  return withSuffix ? `${formatted} đ` : formatted;
+}

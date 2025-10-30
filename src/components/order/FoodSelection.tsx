@@ -1,5 +1,6 @@
 'use client';
 
+import { formatVND } from '@/lib/format-number';
 interface NutritionInfo {
   calories: number;
   protein: number;
@@ -21,9 +22,10 @@ interface FoodSelectionProps {
   items: FoodItem[];
   onItemSelect: (category: string, item: FoodItem) => void;
   onSkip: () => void;
+  selectedIds?: string[];
 }
 
-export default function FoodSelection({ category, items, onItemSelect, onSkip }: FoodSelectionProps) {
+export default function FoodSelection({ category, items, onItemSelect, onSkip, selectedIds = [] }: FoodSelectionProps) {
   return (
     <div className="bg-white rounded-2xl p-6 shadow-lg">
       <div className="flex items-center justify-between mb-6">
@@ -40,9 +42,14 @@ export default function FoodSelection({ category, items, onItemSelect, onSkip }:
           <button
             key={item.id}
             onClick={() => onItemSelect(category, item)}
-            className={`p-4 rounded-xl border-2 transition-all duration-300 text-left hover:border-green-300 hover:shadow-md ${
-              index === 0 ? 'border-green-500 bg-green-50' : 'border-gray-200'
+            className={`p-4 rounded-xl border-2 transition-all duration-300 text-left focus:outline-none focus:ring-2 focus:ring-green-300 hover:border-green-300 hover:shadow-md ${
+              selectedIds.includes(item.id)
+                ? 'border-green-500 bg-green-50'
+                : index === 0
+                ? 'border-green-300 bg-green-50/40'
+                : 'border-gray-200'
             }`}
+            aria-pressed={selectedIds.includes(item.id)}
           >
             <div className="flex items-center space-x-3 mb-2">
               {item.image.startsWith('http') ? (
@@ -50,6 +57,9 @@ export default function FoodSelection({ category, items, onItemSelect, onSkip }:
                   src={item.image}
                   alt={item.name}
                   className="w-12 h-12 object-cover rounded-full border"
+                  loading="lazy"
+                  width={48}
+                  height={48}
                   onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://via.placeholder.com/48?text=No+Img'; }}
                 />
               ) : (
@@ -59,14 +69,14 @@ export default function FoodSelection({ category, items, onItemSelect, onSkip }:
                 <h3 className="font-bold text-lg">{item.name}</h3>
                 <p className="text-sm text-gray-600">{item.description}</p>
               </div>
-              {index === 0 && (
-                <span className="ml-auto bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                  AI Pick
-                </span>
-              )}
+              {selectedIds.includes(item.id) ? (
+                <span className="ml-auto bg-green-600 text-white text-xs px-2 py-1 rounded-full">Đã chọn</span>
+              ) : index === 0 ? (
+                <span className="ml-auto bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">AI Pick</span>
+              ) : null}
             </div>
             <div className="flex justify-between items-center text-sm">
-              <span className="font-bold text-green-600">₹{item.price}</span>
+              <span className="font-bold text-green-600">{formatVND(item.price)}</span>
               <span className="text-gray-600">
                 {item.nutrition.calories} kcal | {item.nutrition.protein}g protein
               </span>
