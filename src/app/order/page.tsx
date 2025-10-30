@@ -20,6 +20,40 @@ import ProgressBar from '@/components/order/ProgressBar';
 import FoodSelection from '@/components/order/FoodSelection';
 import NutritionPanel from '@/components/order/NutritionPanel';
 
+function useInitOrderPage(
+  setTemplates: React.Dispatch<React.SetStateAction<BowlTemplate[]>>,
+  setCategories: React.Dispatch<React.SetStateAction<Category[]>>,
+  setStores: React.Dispatch<React.SetStateAction<Store[]>>,
+  setSelectedStoreId: React.Dispatch<React.SetStateAction<string>>,
+  setPageLoading: React.Dispatch<React.SetStateAction<boolean>>,
+  toast: { error: (msg: string) => void }
+) {
+  return async () => {
+    try {
+      setPageLoading(true);
+      const [tpls, cats, storesRes] = await Promise.all([
+        bowlTemplateService.getAll(),
+        categoryService.getAll(),
+        storeService.getAll()
+      ]);
+      if (tpls.success) setTemplates(tpls.data);
+      if (cats.success) setCategories(cats.data);
+      if (storesRes.success) {
+        setStores(storesRes.data);
+        // Pick saved or first active
+        const saved = typeof window !== 'undefined' ? localStorage.getItem('storeId') : '';
+        const initial = saved || storesRes.data[0]?.id || '';
+        if (initial) {
+          setSelectedStoreId(initial);
+          if (typeof window !== 'undefined') localStorage.setItem('storeId', initial);
+        }
+      }
+    } catch (e) {
+      toast.error('Không thể tải dữ liệu.');
+    } finally { setPageLoading(false); }
+  };
+}
+
 export default function OrderPage() {
   const router = useRouter();
 
@@ -46,33 +80,11 @@ export default function OrderPage() {
   // Payment method selection (must match BE enum)
   const [paymentMethod, setPaymentMethod] = useState<string>('TRANSFER');
 
+  const init = useInitOrderPage(setTemplates, setCategories, setStores, setSelectedStoreId, setPageLoading, toast);
   useEffect(() => {
-    const init = async () => {
-      try {
-        setPageLoading(true);
-        const [tpls, cats, storesRes] = await Promise.all([
-          bowlTemplateService.getAll(),
-          categoryService.getAll(),
-          storeService.getAll()
-        ]);
-        if (tpls.success) setTemplates(tpls.data);
-        if (cats.success) setCategories(cats.data);
-        if (storesRes.success) {
-          setStores(storesRes.data);
-          // Pick saved or first active
-          const saved = typeof window !== 'undefined' ? localStorage.getItem('storeId') : '';
-          const initial = saved || storesRes.data[0]?.id || '';
-          if (initial) {
-            setSelectedStoreId(initial);
-            if (typeof window !== 'undefined') localStorage.setItem('storeId', initial);
-          }
-        }
-      } catch (e) {
-        toast.error('Không thể tải dữ liệu.');
-      } finally { setPageLoading(false); }
-    };
     init();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // CHỈ chạy 1 lần khi mount, không phụ thuộc biến init nữa
 
   const onSelectTemplate = async (tpl: BowlTemplate) => {
     try {
@@ -126,6 +138,7 @@ export default function OrderPage() {
       } catch {}
     }
     setStepIngredients(ings || []);
+    console.log('[STEP INGREDIENTS]:', ings);
     setStepLoading(false);
     toast.success('Bắt đầu đặt món');
   };
@@ -140,6 +153,7 @@ export default function OrderPage() {
       } catch {}
     }
     setStepIngredients(ings || []);
+    console.log('[INGREDIENTS]', ings);
     setStepLoading(false);
   };
 
@@ -147,7 +161,11 @@ export default function OrderPage() {
     if (!bowlId || currentStepIndex < 0) return;
     const step = templateSteps[currentStepIndex];
     const picked = stepSelections[step.id] || [];
-    if (picked.length >= step.maxItems) { toast.warn('Đã đạt số lượng tối đa'); return; }
+    if ((step.maxItems || 1) <= 0) {
+      toast.error('Bước này chưa cấu hình số lượng tối đa cho món');
+      return;
+    }
+    if (picked.length >= (step.maxItems || 1)) { toast.warn('Đã đạt số lượng tối đa'); return; }
     // Validate restrictions before add
     try {
       const v = await apiClient.post('/api/ingredient-restrictions/validate-addition', null, { params: { bowlId, ingredientId: ing.id } });
@@ -172,10 +190,12 @@ export default function OrderPage() {
     try {
       if (bowlId) {
         const b = await bowlService.getById(bowlId);
+        console.log('[REFRESH] Bowl getById:', b);
         if (b.success) setBowlLinePrice(b.data.linePrice || 0);
       }
       if (orderId) {
         const o = await orderService.getById(orderId);
+        console.log('[REFRESH] Order getById:', o);
         if (o.success) setOrderTotal(o.data.totalAmount || 0);
       }
       const all = await bowlService.getAllItems();
@@ -385,10 +405,15 @@ export default function OrderPage() {
                   items={stepIngredients.map(i=>({
                     id: i.id,
                     name: i.name,
-                    price: i.unitPrice,
-                    nutrition: { calories: i.nutrition?.calories || 0, protein: i.nutrition?.protein || 0, carbs: i.nutrition?.carbs || 0, fat: i.nutrition?.fat || 0 },
-                    image: '🥗',
-                    description: i.description || i.unit
+                    price: i.unitPrice ?? 0,
+                    nutrition: {
+                      calories: i.nutrition?.calories ?? 0,
+                      protein: i.nutrition?.protein ?? 0,
+                      carbs: i.nutrition?.carbs ?? 0,
+                      fat: i.nutrition?.fat ?? 0,
+                    },
+                    image: i.imageUrl || '🥗',
+                    description: i.description || i.unit || ''
                   }))}
                   onItemSelect={(_, item)=>{
                     const ing = stepIngredients.find(ii=>ii.id===item.id);
@@ -414,7 +439,9 @@ export default function OrderPage() {
                       {bowlItems.map(it => (
                         <div key={it.id} className="flex items-center justify-between p-3 border rounded-lg">
                           <div className="flex items-center gap-3">
-                            <span className="font-medium truncate max-w-[120px]" title={it.ingredientId}>{it.ingredientId}</span>
+                            <span className="font-medium truncate max-w-[120px]" title={it.ingredientId}>
+                              {stepIngredients.find(i=>i.id===it.ingredientId)?.name || it.ingredientId}
+                            </span>
                             <input type="number" min={0} value={it.quantity} onChange={(e)=>updateItemQty(it, Math.max(0, Number(e.target.value)||0))} className="w-20 px-2 py-1 border rounded" />
                           </div>
                           <button onClick={()=>removeItem(it.id)} className="px-3 py-1 text-red-600 border border-red-200 rounded text-sm">Xóa</button>

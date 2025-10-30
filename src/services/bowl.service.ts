@@ -100,6 +100,8 @@ class BowlService {
   }
 }
 
-export default new BowlService();
+const bowlService = new BowlService();
+export default bowlService;
+export { bowlService };
 
 

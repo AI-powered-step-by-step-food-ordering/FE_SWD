@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { orderService, paymentService, promotionService } from '@/services';
 import { Order, Promotion } from '@/types/api.types';
@@ -26,13 +26,7 @@ export default function CheckoutPage() {
     cardholderName: ''
   });
 
-  useEffect(() => {
-    if (orderId) {
-      loadOrderData();
-    }
-  }, [orderId]);
-
-  const loadOrderData = async () => {
+  const loadOrderData = useCallback(async () => {
     try {
       setLoading(true);
       const [orderRes, promotionsRes] = await Promise.all([
@@ -52,7 +46,13 @@ export default function CheckoutPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [orderId]);
+
+  useEffect(() => {
+    if (orderId) {
+      loadOrderData();
+    }
+  }, [orderId, loadOrderData]);
 
   const handleApplyPromo = async () => {
     if (!promoCode.trim()) return;

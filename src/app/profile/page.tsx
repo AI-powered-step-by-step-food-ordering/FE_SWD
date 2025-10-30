@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/shared/Header';
 import AuthError from '@/components/shared/AuthError';
 import { userService } from '@/services';
 import { User, UserUpdateRequest } from '@/types/api.types';
+import Image from 'next/image';
+import { uploadToFirebase, validateImageFile } from '@/lib/firebase-storage';
 
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
@@ -22,18 +24,27 @@ export default function ProfilePage() {
   const [lastOrderAt, setLastOrderAt] = useState<string | null>(null);
 
   const onPickFile = () => fileInputRef.current?.click();
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-      if (dataUrl) handleInputChange('imageUrl', dataUrl);
-    };
-    reader.readAsDataURL(file);
+    // Validate file
+    const { valid, error } = validateImageFile(file, 5);
+    if (!valid) {
+      toast.error(error);
+      return;
+    }
+    try {
+      const upload = await uploadToFirebase(file, 'profile');
+      if (upload && upload.url) {
+        handleInputChange('imageUrl', upload.url);
+        toast.success('Tải ảnh lên thành công!');
+      }
+    } catch (err: any) {
+      toast.error('Upload ảnh thất bại!');
+    }
   };
 
-  const loadOrderStats = async (uid: string) => {
+  const loadOrderStats = useCallback(async (uid: string) => {
     try {
       const { orderService } = await import('@/services');
       const res = await orderService.getAll();
@@ -51,14 +62,9 @@ export default function ProfilePage() {
     } catch (e) {
       console.error('Failed to load order stats', e);
     }
-  };
-
-
-  useEffect(() => {
-    loadUserProfile();
   }, []);
 
-  const loadUserProfile = async () => {
+  const loadUserProfile = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -129,7 +135,11 @@ export default function ProfilePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadOrderStats, router]);
+
+  useEffect(() => {
+    loadUserProfile();
+  }, [loadUserProfile]);
 
   const normalizeDateToISO = (value?: string) => {
     if (!value) return undefined;
@@ -248,10 +258,13 @@ export default function ProfilePage() {
               <div className="flex items-center space-x-6 mb-6 lg:mb-0">
               <div className="relative">
                 {user.imageUrl ? (
-                  <img 
-                    src={user.imageUrl} 
+                  <Image
+                    src={user.imageUrl}
                     alt={user.fullName}
+                    width={80}
+                    height={80}
                     className="w-20 h-20 rounded-full object-cover shadow-xl border-4 border-white"
+                    unoptimized
                   />
                 ) : (
                   <div className="w-20 h-20 bg-gradient-to-br from-emerald-400 to-green-500 rounded-full flex items-center justify-center shadow-xl">
@@ -595,10 +608,13 @@ export default function ProfilePage() {
                     title={'Click để chọn ảnh'}
                   >
                     {editData.imageUrl || user.imageUrl ? (
-                      <img
+                      <Image
                         src={editData.imageUrl || user.imageUrl || ''}
                         alt={editData.fullName || user.fullName}
+                        width={80}
+                        height={80}
                         className="w-full h-full object-cover"
+                        unoptimized
                       />
                     ) : (
                       <div className="w-full h-full bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center">

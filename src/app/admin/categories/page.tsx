@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import AdminLayout from "@/components/admin/AdminLayout";
 import FirebaseImageUpload from "@/components/shared/FirebaseImageUpload";
-import { apiClient } from "@/lib/api";
+import apiClient from '@/services/api.config';
 import { getFirebaseThumbnail } from "@/lib/firebase-storage";
 import type { Category, CategoryRequest } from "@/types/api";
 import { toast } from "react-toastify";
+import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 
 export default function CategoriesPage() {
+  useRequireAdmin();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -27,11 +29,11 @@ export default function CategoriesPage() {
   const loadCategories = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.getAll<Category>("categories");
-      setCategories(response.data || []);
+      const response = await apiClient.get<{ data: Category[] }>('/api/categories/getall');
+      setCategories(response.data?.data || []);
     } catch (error) {
-      console.error("Failed to load categories:", error);
-      toast.error("Failed to load categories");
+      console.error('Failed to load categories:', error);
+      toast.error('Failed to load categories');
     } finally {
       setLoading(false);
     }
@@ -39,35 +41,32 @@ export default function CategoriesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     try {
       if (editingCategory) {
-        await apiClient.update("categories", editingCategory.id, formData);
-        toast.success("Category updated successfully");
+        await apiClient.put(`/api/categories/update/${editingCategory.id}`, formData);
+        toast.success('Category updated successfully');
       } else {
-        await apiClient.create("categories", formData);
-        toast.success("Category created successfully");
+        await apiClient.post('/api/categories/create', formData);
+        toast.success('Category created successfully');
       }
-
       setShowModal(false);
       resetForm();
       loadCategories();
     } catch (error) {
-      console.error("Failed to save category:", error);
-      toast.error("Failed to save category");
+      console.error('Failed to save category:', error);
+      toast.error('Failed to save category');
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this category?")) return;
-
+    if (!confirm('Are you sure you want to delete this category?')) return;
     try {
-      await apiClient.delete("categories", id);
-      toast.success("Category deleted successfully");
+      await apiClient.delete(`/api/categories/delete/${id}`);
+      toast.success('Category deleted successfully');
       loadCategories();
     } catch (error) {
-      console.error("Failed to delete category:", error);
-      toast.error("Failed to delete category");
+      console.error('Failed to delete category:', error);
+      toast.error('Failed to delete category');
     }
   };
 

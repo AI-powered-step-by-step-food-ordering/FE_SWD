@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { apiClient } from '@/lib/api';
+import apiClient from '@/services/api.config';
 import Link from 'next/link';
+import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 
 interface Stats {
   totalUsers: number;
@@ -13,6 +14,7 @@ interface Stats {
 }
 
 export default function AdminDashboard() {
+  useRequireAdmin();
   const [stats, setStats] = useState<Stats>({
     totalUsers: 0,
     totalOrders: 0,
@@ -28,17 +30,17 @@ export default function AdminDashboard() {
   const loadStats = async () => {
     try {
       const [users, orders, ingredients, promotions] = await Promise.all([
-        apiClient.getAll('users'),
-        apiClient.getAll('orders'),
-        apiClient.getAll('ingredients'),
-        apiClient.getAll('promotions'),
+        apiClient.get('/api/users/getall'),
+        apiClient.get('/api/orders/getall'),
+        apiClient.get('/api/ingredients/getall'),
+        apiClient.get('/api/promotions/getall'),
       ]);
 
       setStats({
-        totalUsers: users.data?.length || 0,
-        totalOrders: orders.data?.length || 0,
-        totalIngredients: ingredients.data?.length || 0,
-        totalPromotions: promotions.data?.length || 0,
+        totalUsers: users.data?.data?.length || 0,
+        totalOrders: orders.data?.data?.length || 0,
+        totalIngredients: ingredients.data?.data?.length || 0,
+        totalPromotions: promotions.data?.data?.length || 0,
       });
     } catch (error) {
       console.error('Failed to load stats:', error);

@@ -71,7 +71,10 @@ class TemplateStepService {
   }
 }
 
-export default new TemplateStepService();
+const templateStepService = new TemplateStepService();
+export default templateStepService;
+export { templateStepService };
+
 
 
 

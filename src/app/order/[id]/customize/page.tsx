@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { 
   orderService, 
@@ -27,13 +27,7 @@ export default function CustomizeBowlPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
 
-  useEffect(() => {
-    if (orderId) {
-      loadOrderData();
-    }
-  }, [orderId]);
-
-  const loadOrderData = async () => {
+  const loadOrderData = useCallback(async () => {
     try {
       setLoading(true);
       const orderRes = await orderService.getById(orderId);
@@ -50,7 +44,13 @@ export default function CustomizeBowlPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [orderId]);
+
+  useEffect(() => {
+    if (orderId) {
+      loadOrderData();
+    }
+  }, [orderId, loadOrderData]);
 
   const loadBowlData = async () => {
     try {
@@ -241,7 +241,7 @@ export default function CustomizeBowlPage() {
                       <div key={ingredient.id} className="flex justify-between items-center p-3 border rounded-lg">
                         <div>
                           <span className="font-medium">{ingredient.name}</span>
-                          <span className="text-sm text-gray-600 ml-2">${ingredient.unitPrice}/{ingredient.unit}</span>
+                          <span className="text-sm text-gray-600 ml-2">${ingredient.unitPrice ?? 0}/{ingredient.unit || ''}</span>
                         </div>
                         <button 
                           onClick={() => handleAddIngredient(bowls[0]?.id || '', ingredient)}

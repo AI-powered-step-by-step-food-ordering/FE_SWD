@@ -4,12 +4,14 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import AdminLayout from '@/components/admin/AdminLayout';
 import FirebaseImageUpload from '@/components/shared/FirebaseImageUpload';
-import { apiClient } from '@/lib/api';
+import apiClient from '@/services/api.config';
 import { getFirebaseThumbnail } from '@/lib/firebase-storage';
 import type { Ingredient, IngredientRequest, Category } from '@/types/api';
 import { toast } from 'react-toastify';
+import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 
 export default function IngredientsPage() {
+  useRequireAdmin();
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,11 +33,11 @@ export default function IngredientsPage() {
     try {
       setLoading(true);
       const [ingredientsRes, categoriesRes] = await Promise.all([
-        apiClient.getAll<Ingredient>('ingredients'),
-        apiClient.getAll<Category>('categories'),
+        apiClient.get<{ data: Ingredient[] }>('/api/ingredients/getall'),
+        apiClient.get<{ data: Category[] }>('/api/categories/getall'),
       ]);
-      setIngredients(ingredientsRes.data || []);
-      setCategories(categoriesRes.data || []);
+      setIngredients(ingredientsRes.data?.data || []);
+      setCategories(categoriesRes.data?.data || []);
     } catch (error) {
       console.error('Failed to load data:', error);
       toast.error('Failed to load data');
@@ -49,10 +51,10 @@ export default function IngredientsPage() {
     
     try {
       if (editingIngredient) {
-        await apiClient.update('ingredients', editingIngredient.id, formData);
+        await apiClient.put(`/api/ingredients/update/${editingIngredient.id}`, formData);
         toast.success('Ingredient updated successfully');
       } else {
-        await apiClient.create('ingredients', formData);
+        await apiClient.post('/api/ingredients/create', formData);
         toast.success('Ingredient created successfully');
       }
       
@@ -69,7 +71,7 @@ export default function IngredientsPage() {
     if (!confirm('Are you sure you want to delete this ingredient?')) return;
     
     try {
-      await apiClient.delete('ingredients', id);
+      await apiClient.delete(`/api/ingredients/delete/${id}`);
       toast.success('Ingredient deleted successfully');
       loadData();
     } catch (error) {

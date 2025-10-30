@@ -167,11 +167,11 @@ export default function ImageGalleryExample() {
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
         <h3 className="text-lg font-bold text-blue-900 mb-2">📝 Instructions</h3>
         <ul className="space-y-2 text-sm text-blue-800">
-          <li>• Click "Select Image" to upload a new image to Cloudinary</li>
-          <li>• After upload, click "Add to Gallery" to add it to the gallery</li>
+          <li>• Click &quot;Select Image&quot; to upload a new image to Cloudinary</li>
+          <li>• After upload, click &quot;Add to Gallery&quot; to add it to the gallery</li>
           <li>• Hover over images to see the delete button (trash icon)</li>
           <li>• Click on any image to view it in full size</li>
-          <li>• Images are stored on Cloudinary's cloud storage</li>
+          <li>• Images are stored on Cloudinary&apos;s cloud storage</li>
         </ul>
       </div>
     </div>

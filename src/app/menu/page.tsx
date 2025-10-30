@@ -526,17 +526,17 @@ export default function MenuPage() {
                     <div className="flex justify-between items-start">
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900">{ingredient.name}</h3>
-                        <p className="text-sm text-gray-600">Unit: {ingredient.unit}</p>
-                        {ingredient.nutrition && (
+                        <p className="text-sm text-gray-600">Unit: {ingredient.unit || ''}</p>
+                        {(ingredient.nutrition && (ingredient.nutrition.calories != null || ingredient.nutrition.protein != null)) && (
                           <div className="mt-2 text-sm text-gray-500">
-                            <span>Calories: {ingredient.nutrition.calories}</span>
-                            <span className="ml-4">Protein: {ingredient.nutrition.protein}g</span>
+                            <span>Calories: {ingredient.nutrition.calories ?? 0}</span>
+                            <span className="ml-4">Protein: {ingredient.nutrition.protein ?? 0}g</span>
                           </div>
                         )}
                       </div>
                       <div className="text-right">
                         <p className="text-lg font-bold text-green-600">
-                          ${ingredient.unitPrice.toFixed(2)}/{ingredient.unit}
+                          ${ingredient.unitPrice?.toFixed(2) ?? '0.00'}/{ingredient.unit || ''}
                         </p>
                         <button className="mt-2 px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600 transition-colors">
                           Add to Bowl

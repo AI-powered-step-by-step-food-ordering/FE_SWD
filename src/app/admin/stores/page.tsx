@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { apiClient } from '@/lib/api';
+import apiClient from '@/services/api.config';
 import type { Store, StoreRequest } from '@/types/api';
 import { toast } from 'react-toastify';
+import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 
 export default function StoresPage() {
+  useRequireAdmin();
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -27,8 +29,8 @@ export default function StoresPage() {
   const loadStores = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.getAll<Store>('stores');
-      setStores(response.data || []);
+      const response = await apiClient.get<{ data: Store[] }>('/api/stores/getall');
+      setStores(response.data?.data || []);
     } catch (error) {
       console.error('Failed to load stores:', error);
       toast.error('Failed to load stores');
@@ -42,10 +44,10 @@ export default function StoresPage() {
     
     try {
       if (editingStore) {
-        await apiClient.update('stores', editingStore.id, formData);
+        await apiClient.put(`/api/stores/update/${editingStore.id}`, formData);
         toast.success('Store updated successfully');
       } else {
-        await apiClient.create('stores', formData);
+        await apiClient.post('/api/stores/create', formData);
         toast.success('Store created successfully');
       }
       
@@ -62,7 +64,7 @@ export default function StoresPage() {
     if (!confirm('Are you sure you want to delete this store?')) return;
     
     try {
-      await apiClient.delete('stores', id);
+      await apiClient.delete(`/api/stores/delete/${id}`);
       toast.success('Store deleted successfully');
       loadStores();
     } catch (error) {

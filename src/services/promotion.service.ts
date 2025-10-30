@@ -68,6 +68,8 @@ class PromotionService {
   }
 }
 
-export default new PromotionService();
+const promotionService = new PromotionService();
+export default promotionService;
+export { promotionService };
 
 

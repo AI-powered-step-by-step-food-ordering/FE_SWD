@@ -139,6 +139,8 @@ class BowlTemplateService {
   }
 }
 
-export default new BowlTemplateService();
+const bowlTemplateService = new BowlTemplateService();
+export default bowlTemplateService;
+export { bowlTemplateService };
 
 

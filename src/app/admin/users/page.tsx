@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { apiClient } from '@/lib/api';
+import apiClient from '@/services/api.config';
 import type { User, UserRequest } from '@/types/api';
 import { toast } from 'react-toastify';
+import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 
 export default function UsersPage() {
+  useRequireAdmin();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -27,8 +29,8 @@ export default function UsersPage() {
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.getAll<User>('users');
-      setUsers(response.data || []);
+      const response = await apiClient.get<{ data: User[] }>('/api/users/getall');
+      setUsers(response.data?.data || []);
     } catch (error) {
       console.error('Failed to load users:', error);
       toast.error('Failed to load users');
@@ -42,10 +44,10 @@ export default function UsersPage() {
     
     try {
       if (editingUser) {
-        await apiClient.update('users', editingUser.id, formData);
+        await apiClient.put(`/api/users/update/${editingUser.id}`, formData);
         toast.success('User updated successfully');
       } else {
-        await apiClient.create('users', formData);
+        await apiClient.post('/api/users/create', formData);
         toast.success('User created successfully');
       }
       
@@ -62,7 +64,7 @@ export default function UsersPage() {
     if (!confirm('Are you sure you want to delete this user?')) return;
     
     try {
-      await apiClient.delete('users', id);
+      await apiClient.delete(`/api/users/delete/${id}`);
       toast.success('User deleted successfully');
       loadUsers();
     } catch (error) {

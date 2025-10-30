@@ -62,6 +62,8 @@ class IngredientService {
   }
 }
 
-export default new IngredientService();
+const ingredientService = new IngredientService();
+export default ingredientService;
+export { ingredientService };
 
 

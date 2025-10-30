@@ -68,7 +68,6 @@ const INGREDIENT_EMOJIS: Record<string, string> = {
   tahini: '🥜',
   pesto: '🌿',
   yogurt: '🥛',
-  avocado: '🥑',
   olive: '🫒',
   soy: '🥫',
 };

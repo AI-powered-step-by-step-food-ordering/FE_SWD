@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { apiClient } from "@/lib/api";
+import apiClient from '@/services/api.config';
 import type { Order } from "@/types/api";
 import { toast } from "react-toastify";
+import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 
 export default function OrdersPage() {
+  useRequireAdmin();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("ALL");
@@ -18,93 +20,91 @@ export default function OrdersPage() {
   const loadOrders = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.getAll<Order>("orders");
-      setOrders(response.data || []);
+      const response = await apiClient.get<{ data: Order[] }>('/api/orders/getall');
+      setOrders(response.data?.data || []);
     } catch (error) {
-      console.error("Failed to load orders:", error);
-      toast.error("Failed to load orders");
+      console.error('Failed to load orders:', error);
+      toast.error('Failed to load orders');
     } finally {
       setLoading(false);
     }
   };
 
   const handleConfirm = async (id: string) => {
-    if (!confirm("Are you sure you want to confirm this order?")) return;
+    if (!confirm('Are you sure you want to confirm this order?')) return;
     try {
-      const response = await apiClient.confirmOrder(id);
-      if (response.success && response.data) {
+      const response = await apiClient.post<{ data: Order, message: string, success: boolean }>(`/api/orders/confirm/${id}`);
+      if (response.data?.success && response.data?.data) {
         setOrders((prev) =>
           prev.map((order) =>
             order.id === id
-              ? { ...order, status: response.data.status }
+              ? { ...order, status: response.data.data.status }
               : order,
           ),
         );
-        toast.success("Order confirmed successfully");
+        toast.success('Order confirmed successfully');
       } else {
-        toast.error(response.message || "Failed to confirm order");
+        toast.error(response.data?.message || 'Failed to confirm order');
       }
     } catch (error) {
-      console.error("Failed to confirm order:", error);
-      toast.error("Failed to confirm order");
+      console.error('Failed to confirm order:', error);
+      toast.error('Failed to confirm order');
     }
   };
 
   const handleComplete = async (id: string) => {
-    if (!confirm("Are you sure you want to mark this order as completed?"))
-      return;
+    if (!confirm('Are you sure you want to mark this order as completed?')) return;
     try {
-      const response = await apiClient.completeOrder(id);
-      if (response.success && response.data) {
+      const response = await apiClient.post<{ data: Order, message: string, success: boolean }>(`/api/orders/complete/${id}`);
+      if (response.data?.success && response.data?.data) {
         setOrders((prev) =>
           prev.map((order) =>
             order.id === id
-              ? { ...order, status: response.data.status }
+              ? { ...order, status: response.data.data.status }
               : order,
           ),
         );
-        toast.success("Order completed successfully");
+        toast.success('Order completed successfully');
       } else {
-        toast.error(response.message || "Failed to complete order");
+        toast.error(response.data?.message || 'Failed to complete order');
       }
     } catch (error) {
-      console.error("Failed to complete order:", error);
-      toast.error("Failed to complete order");
+      console.error('Failed to complete order:', error);
+      toast.error('Failed to complete order');
     }
   };
 
   const handleCancel = async (id: string) => {
-    const reason = prompt("Enter cancellation reason (optional):");
+    const reason = prompt('Enter cancellation reason (optional):');
     try {
-      const response = await apiClient.cancelOrder(id, reason || undefined);
-      if (response.success && response.data) {
+      const response = await apiClient.post<{ data: Order, message: string, success: boolean }>(`/api/orders/cancel/${id}${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`);
+      if (response.data?.success && response.data?.data) {
         setOrders((prev) =>
           prev.map((order) =>
             order.id === id
-              ? { ...order, status: response.data.status }
+              ? { ...order, status: response.data.data.status }
               : order,
           ),
         );
-        toast.success("Order cancelled successfully");
+        toast.success('Order cancelled successfully');
       } else {
-        toast.error(response.message || "Failed to cancel order");
+        toast.error(response.data?.message || 'Failed to cancel order');
       }
     } catch (error) {
-      console.error("Failed to cancel order:", error);
-      toast.error("Failed to cancel order");
+      console.error('Failed to cancel order:', error);
+      toast.error('Failed to cancel order');
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this order?")) return;
-
+    if (!confirm('Are you sure you want to delete this order?')) return;
     try {
-      await apiClient.delete("orders", id);
-      toast.success("Order deleted successfully");
+      await apiClient.delete(`/api/orders/delete/${id}`);
+      toast.success('Order deleted successfully');
       loadOrders();
     } catch (error) {
-      console.error("Failed to delete order:", error);
-      toast.error("Failed to delete order");
+      console.error('Failed to delete order:', error);
+      toast.error('Failed to delete order');
     }
   };
 

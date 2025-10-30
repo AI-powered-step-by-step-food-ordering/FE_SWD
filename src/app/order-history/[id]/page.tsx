@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { orderService, bowlService, paymentService } from '@/services';
 import { Order, Bowl, PaymentTransaction } from '@/types/api.types';
@@ -16,13 +16,7 @@ export default function OrderTrackingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
 
-  useEffect(() => {
-    if (orderId) {
-      loadOrderData();
-    }
-  }, [orderId]);
-
-  const loadOrderData = async () => {
+  const loadOrderData = useCallback(async () => {
     try {
       setLoading(true);
       const [orderRes, paymentsRes] = await Promise.all([
@@ -44,7 +38,13 @@ export default function OrderTrackingPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [orderId]);
+
+  useEffect(() => {
+    if (orderId) {
+      loadOrderData();
+    }
+  }, [orderId, loadOrderData]);
 
   const loadBowls = async (orderId: string) => {
     try {
@@ -297,6 +297,7 @@ export default function OrderTrackingPage() {
     </div>
   );
 }
+
 
 
 

@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { apiClient } from '@/lib/api';
+import apiClient from '@/services/api.config';
 import type { Promotion, PromotionRequest } from '@/types/api';
 import { toast } from 'react-toastify';
+import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 
 export default function PromotionsPage() {
+  useRequireAdmin();
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -30,8 +32,8 @@ export default function PromotionsPage() {
   const loadPromotions = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.getAll<Promotion>('promotions');
-      setPromotions(response.data || []);
+      const response = await apiClient.get<{ data: Promotion[] }>('/api/promotions/getall');
+      setPromotions(response.data?.data || []);
     } catch (error) {
       console.error('Failed to load promotions:', error);
       toast.error('Failed to load promotions');
@@ -45,10 +47,10 @@ export default function PromotionsPage() {
     
     try {
       if (editingPromotion) {
-        await apiClient.update('promotions', editingPromotion.id, formData);
+        await apiClient.put(`/api/promotions/update/${editingPromotion.id}`, formData);
         toast.success('Promotion updated successfully');
       } else {
-        await apiClient.create('promotions', formData);
+        await apiClient.post('/api/promotions/create', formData);
         toast.success('Promotion created successfully');
       }
       
@@ -65,7 +67,7 @@ export default function PromotionsPage() {
     if (!confirm('Are you sure you want to delete this promotion?')) return;
     
     try {
-      await apiClient.delete('promotions', id);
+      await apiClient.delete(`/api/promotions/delete/${id}`);
       toast.success('Promotion deleted successfully');
       loadPromotions();
     } catch (error) {

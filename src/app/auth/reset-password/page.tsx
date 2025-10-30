@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -7,7 +8,7 @@ import { toast } from 'react-toastify';
 import { useSearchParams } from 'next/navigation';
 import { usePageLoading } from '@/hooks/usePageLoading';
 
-export default function ResetPasswordPage() {
+function ResetPasswordPage() {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -159,6 +160,14 @@ export default function ResetPasswordPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPageWrapper() {
+  return (
+    <Suspense>
+      <ResetPasswordPage />
+    </Suspense>
   );
 }
 

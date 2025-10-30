@@ -1,9 +1,8 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 import { getCookie, setCookie, clearAuthCookies } from '@/lib/auth-utils';
 
-// API Base URL
-export const API_BASE_URL = 'http://cinezone.info:4458';
-// export const API_BASE_URL = 'http://localhost:8080';
+// Use environment variable when available (Next.js exposes NEXT_PUBLIC_* to the browser)
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080/api';
 
 // Create axios instance
 const apiClient: AxiosInstance = axios.create({
@@ -53,7 +52,7 @@ apiClient.interceptors.response.use(
       try {
         const refreshToken = typeof window !== 'undefined' ? getCookie('refreshToken') : null;
         if (refreshToken) {
-          const response = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {
+          const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
             refreshToken,
           });
 
