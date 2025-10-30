@@ -7,6 +7,7 @@ import type { Metadata } from "next";
 import NextTopLoader from "nextjs-toploader";
 import type { PropsWithChildren } from "react";
 import LoadingProvider from "@/components/shared/LoadingProvider";
+import DebugTokenModal from "@/components/shared/DebugTokenModal";
 import { ToastContainer } from 'react-toastify';
 import AuthDebug from "@/components/debug/AuthDebug";
 
@@ -53,6 +54,7 @@ export default function RootLayout({ children }: PropsWithChildren) {
               pauseOnHover
               theme="light"
             />
+            <DebugTokenModal />
             {/* <AuthDebug /> */}
           </LoadingProvider>
       </body>
