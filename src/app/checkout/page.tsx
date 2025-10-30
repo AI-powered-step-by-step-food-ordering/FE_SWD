@@ -37,8 +37,8 @@ function CheckoutForm() {
       await new Promise(resolve => setTimeout(resolve, 800));
       
       // Check authentication
-      const userData = localStorage.getItem('user');
-      const isAuth = localStorage.getItem('isAuthenticated');
+      const userData = document.cookie.split(';').find(c => c.trim().startsWith('user='))?.split('=')[1];
+      const isAuth = document.cookie.includes('isAuthenticated=true') ? 'true' : 'false';
       
       if (!isAuth || !userData) {
         hideLoading(); // Hide loading before redirect

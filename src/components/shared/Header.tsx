@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { usePageLoading } from '@/hooks/usePageLoading';
+import { useAuthStore } from '@/store/auth.store';
+import { clearAuthCookies, isAuthenticatedViaCookie, getStoredUser } from '@/lib/auth-utils';
+import { authService } from '@/services';
 
 interface HeaderProps {
   totalPrice?: number;
@@ -15,12 +18,15 @@ export default function Header({ totalPrice = 0, totalCalories = 0, showPriceInf
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const { navigateWithLoading } = usePageLoading();
+  const hydrateFromCookies = useAuthStore(s => s.hydrateFromCookies);
+  const storeUser = useAuthStore(s => s.user);
+  const storeIsAuth = useAuthStore(s => s.isAuthenticated);
+  const clearStore = useAuthStore(s => s.clear);
 
   const handleOrderNavigation = () => {
-    const authStatus = localStorage.getItem('isAuthenticated');
-    const userData = localStorage.getItem('user');
-    
-    if (authStatus !== 'true' || !userData) {
+    const authed = isAuthenticatedViaCookie();
+    const u = getStoredUser();
+    if (!authed || !u) {
       // Redirect to login with order redirect param
       navigateWithLoading('/auth/login?from=order');
     } else {
@@ -29,15 +35,23 @@ export default function Header({ totalPrice = 0, totalCalories = 0, showPriceInf
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+    } catch { /* ignore error */ }
+    clearStore();
+    clearAuthCookies();
+    navigateWithLoading('/auth/login');
+  };
+
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    const authStatus = localStorage.getItem('isAuthenticated');
-    
-    if (authStatus === 'true' && userData) {
-      setUser(JSON.parse(userData));
-      setIsAuthenticated(true);
-    }
-  }, []);
+    hydrateFromCookies();
+  }, [hydrateFromCookies]);
+
+  useEffect(() => {
+    setUser(storeUser);
+    setIsAuthenticated(storeIsAuth);
+  }, [storeUser, storeIsAuth]);
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -111,9 +125,9 @@ export default function Header({ totalPrice = 0, totalCalories = 0, showPriceInf
           {/* Navigation Menu */}
           <nav className="hidden md:flex items-center space-x-1 lg:space-x-2">
             <button onClick={() => navigateWithLoading('/')} className="px-4 py-2 text-gray-700 hover:text-green-600 hover:bg-white/60 rounded-lg transition-all duration-300 text-sm lg:text-base font-semibold hover:scale-105 hover:shadow-md backdrop-blur-sm">Home</button>
-            <a href="#plans" className="px-4 py-2 text-gray-700 hover:text-green-600 hover:bg-white/60 rounded-lg transition-all duration-300 text-sm lg:text-base font-semibold hover:scale-105 hover:shadow-md backdrop-blur-sm">Our Subscriptions</a>
-            <a className="px-4 py-2 text-gray-700 hover:text-green-600 hover:bg-white/60 rounded-lg transition-all duration-300 text-sm lg:text-base font-semibold hover:scale-105 hover:shadow-md backdrop-blur-sm" href="#about">About Us</a>
-            <a className="px-4 py-2 text-gray-700 hover:text-green-600 hover:bg-white/60 rounded-lg transition-all duration-300 text-sm lg:text-base font-semibold hover:scale-105 hover:shadow-md backdrop-blur-sm" href="#contact">Contact Us</a>
+            {/* <a href="#plans" className="px-4 py-2 text-gray-700 hover:text-green-600 hover:bg-white/60 rounded-lg transition-all duration-300 text-sm lg:text-base font-semibold hover:scale-105 hover:shadow-md backdrop-blur-sm">Our Subscriptions</a> */}
+            <button onClick={() => navigateWithLoading('/about')} className="px-4 py-2 text-gray-700 hover:text-green-600 hover:bg-white/60 rounded-lg transition-all duration-300 text-sm lg:text-base font-semibold hover:scale-105 hover:shadow-md backdrop-blur-sm">About Us</button>
+            <button onClick={() => navigateWithLoading('/contact')} className="px-4 py-2 text-gray-700 hover:text-green-600 hover:bg-white/60 rounded-lg transition-all duration-300 text-sm lg:text-base font-semibold hover:scale-105 hover:shadow-md backdrop-blur-sm">Contact Us</button>
             <button onClick={handleOrderNavigation} className="px-4 py-2 text-gray-700 hover:text-green-600 hover:bg-white/60 rounded-lg transition-all duration-300 text-sm lg:text-base font-semibold hover:scale-105 hover:shadow-md backdrop-blur-sm">Order Now</button>
           </nav>
           
@@ -165,8 +179,8 @@ export default function Header({ totalPrice = 0, totalCalories = 0, showPriceInf
                   <div className="py-2">
                     {/* User Info */}
                     <div className="px-4 py-3 border-b border-gray-100">
-                      <p className="text-sm font-medium text-gray-900">{user.name}</p>
-                      <p className="text-xs text-gray-500">{user.email}</p>
+                      <p className="text-sm font-medium text-gray-900">{user.fullName}</p>
+                      {/* <p className="text-xs text-gray-500">{user.email}</p> */}
                     </div>
                     
                     {/* Menu Items */}
@@ -196,17 +210,30 @@ export default function Header({ totalPrice = 0, totalCalories = 0, showPriceInf
                       <span>Order History</span>
                     </button>
                     
-                    <button 
-                      onClick={() => {
+                    {user?.role?.toUpperCase() === 'ADMIN' && (
+                      <button 
+                        onClick={() => {
+                          setIsProfileDropdownOpen(false);
+                          navigateWithLoading('/admin');
+                        }}
+                        className="flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-600 transition-colors w-full text-left"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                        <span>Admin Panel</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={async () => {
                         setIsProfileDropdownOpen(false);
-                        localStorage.removeItem('user');
-                        localStorage.removeItem('isAuthenticated');
-                        window.location.href = '/';
+                        await handleLogout();
                       }}
-                      className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors border-t border-gray-100"
+                      className="flex items-center space-x-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors w-full text-left border-t border-gray-100 mt-2"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7"></path>
                       </svg>
                       <span>Logout</span>
                     </button>
@@ -241,6 +268,9 @@ export default function Header({ totalPrice = 0, totalCalories = 0, showPriceInf
                   </div>
                   <button onClick={() => { setIsMobileMenuOpen(false); navigateWithLoading('/profile'); }} className="px-4 py-3 text-gray-700 hover:text-green-600 hover:bg-green-50/80 rounded-lg transition-all duration-300 text-base font-semibold w-full text-left">👤 Profile</button>
                   <button onClick={() => { setIsMobileMenuOpen(false); navigateWithLoading('/order-history'); }} className="px-4 py-3 text-gray-700 hover:text-green-600 hover:bg-green-50/80 rounded-lg transition-all duration-300 text-base font-semibold w-full text-left">📋 Order History</button>
+                  {user?.role?.toUpperCase() === 'ADMIN' && (
+                    <button onClick={() => { setIsMobileMenuOpen(false); navigateWithLoading('/admin'); }} className="px-4 py-3 text-gray-700 hover:text-purple-600 hover:bg-purple-50/80 rounded-lg transition-all duration-300 text-base font-semibold w-full text-left">⚙️ Admin Panel</button>
+                  )}
                 </>
               ) : (
                 <>

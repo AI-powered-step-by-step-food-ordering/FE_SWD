@@ -9,6 +9,12 @@ const HeroSection = dynamic(() => import('./HeroSection'), {
       <div className="relative z-10 max-w-7xl mx-auto w-full">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           <div className="text-center lg:text-left order-2 lg:order-1">
+            <style>{`
+              @keyframes shimmer {
+                0% { transform: translateX(-100%); }
+                100% { transform: translateX(100%); }
+              }
+            `}</style>
             <div className="mb-4">
               <span className="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs sm:text-sm font-semibold">
                 🤖 AI-Powered Nutrition
@@ -23,10 +29,21 @@ const HeroSection = dynamic(() => import('./HeroSection'), {
               track your macros in real-time, and achieve your health goals faster.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-0">
-              <a href="/order" className="bg-green-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold hover:bg-green-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 text-center">
-                🥗 Build Your Bowl
-              </a>
-              <button className="border-2 border-green-600 text-green-600 px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold hover:bg-green-600 hover:text-white transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
+              <span className="relative inline-flex items-center justify-center px-5 sm:px-7 py-2.5 sm:py-3 rounded-xl text-sm sm:text-base font-semibold text-white bg-gradient-to-r from-green-500 to-emerald-600 shadow-lg opacity-90 cursor-not-allowed overflow-hidden">
+                <svg className="mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <circle cx="12" cy="12" r="10" strokeWidth="2" opacity="0.2" />
+                  <path d="M12 2a10 10 0 0 1 10 10" strokeWidth="2" />
+                </svg>
+                Loading…
+                <span
+                  className="absolute inset-0 opacity-20"
+                  style={{
+                    background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent)',
+                    animation: 'shimmer 1.6s infinite',
+                  }}
+                />
+              </span>
+              <button className="border-2 border-green-600 text-green-600 px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold opacity-70 cursor-not-allowed">
                 📊 View Nutrition Plans
               </button>
             </div>

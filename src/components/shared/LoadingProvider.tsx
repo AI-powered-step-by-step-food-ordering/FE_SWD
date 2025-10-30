@@ -1,7 +1,8 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, ReactNode, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { useUiStore } from '@/store/ui.store';
 
 interface LoadingContextType {
   isLoading: boolean;
@@ -25,15 +26,66 @@ interface LoadingProviderProps {
 }
 
 export default function LoadingProvider({ children }: LoadingProviderProps) {
-  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const isLoading = useUiStore(s => s.isLoading);
+  const showLoading = useUiStore(s => s.showLoading);
+  const hideLoading = useUiStore(s => s.hideLoading);
+  // Debounced visibility to avoid flicker
+  const [isVisible, setIsVisible] = useState(false);
+  const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastShowTsRef = useRef<number>(0);
 
-  const showLoading = () => setIsLoading(true);
-  const hideLoading = () => setIsLoading(false);
+  useEffect(() => {
+    const SHOW_DELAY_MS = 120; // wait before showing
+    const HIDE_DELAY_MS = 200; // keep a bit before hiding
+    const MIN_VISIBLE_MS = 400; // minimum visible once shown
+
+    if (isLoading) {
+      if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+      if (isVisible) {
+        // already visible; just keep it
+        return;
+      }
+      if (!showTimerRef.current) {
+        showTimerRef.current = setTimeout(() => {
+          setIsVisible(true);
+          lastShowTsRef.current = Date.now();
+          showTimerRef.current = null;
+        }, SHOW_DELAY_MS);
+      }
+    } else {
+      if (showTimerRef.current) { clearTimeout(showTimerRef.current); showTimerRef.current = null; }
+      if (!isVisible) return;
+      const elapsed = Date.now() - lastShowTsRef.current;
+      const wait = Math.max(HIDE_DELAY_MS, MIN_VISIBLE_MS - elapsed, 0);
+      if (!hideTimerRef.current) {
+        hideTimerRef.current = setTimeout(() => {
+          setIsVisible(false);
+          hideTimerRef.current = null;
+        }, wait);
+      }
+    }
+  }, [isLoading, isVisible]);
+
+  // Lock body scroll while loader visible
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const body = document.body;
+    const prevOverflow = body.style.overflow;
+    if (isVisible) {
+      body.style.overflow = 'hidden';
+    } else {
+      body.style.overflow = prevOverflow || '';
+    }
+    return () => {
+      body.style.overflow = prevOverflow || '';
+    };
+  }, [isVisible]);
 
   const navigateWithLoading = (url: string) => {
     // Show loading first
-    setIsLoading(true);
+    showLoading();
     
     // Small delay to ensure loading shows, then navigate
     setTimeout(() => {
@@ -41,7 +93,7 @@ export default function LoadingProvider({ children }: LoadingProviderProps) {
       
       // Hide loading after navigation
       setTimeout(() => {
-        setIsLoading(false);
+        hideLoading();
       }, 600); // Keep loading for 600ms after navigation
     }, 100); // Small delay before navigation
   };
@@ -51,7 +103,7 @@ export default function LoadingProvider({ children }: LoadingProviderProps) {
       {children}
       
       {/* Global Loading Overlay */}
-      {isLoading && (
+      {isVisible && (
         <div className="fixed inset-0 z-[9999] bg-emerald-50 flex items-center justify-center">
           <div className="w-32 h-32 text-emerald-600">
             <svg viewBox="0 0 240 240" className="w-full h-full">

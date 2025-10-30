@@ -45,7 +45,16 @@ export default function FoodSelection({ category, items, onItemSelect, onSkip }:
             }`}
           >
             <div className="flex items-center space-x-3 mb-2">
-              <span className="text-3xl">{item.image}</span>
+              {item.image.startsWith('http') ? (
+                <img
+                  src={item.image}
+                  alt={item.name}
+                  className="w-12 h-12 object-cover rounded-full border"
+                  onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://via.placeholder.com/48?text=No+Img'; }}
+                />
+              ) : (
+                <span className="text-3xl">{item.image}</span>
+              )}
               <div>
                 <h3 className="font-bold text-lg">{item.name}</h3>
                 <p className="text-sm text-gray-600">{item.description}</p>

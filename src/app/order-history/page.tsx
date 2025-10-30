@@ -92,28 +92,45 @@ export default function OrderHistoryPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    const isAuth = localStorage.getItem('isAuthenticated');
-    
-    if (!isAuth || !userData) {
-      router.push('/auth/login');
-      return;
-    }
-    
-    const parsedUser = JSON.parse(userData);
-    setUser(parsedUser);
-    
-    // Load order history from localStorage or use sample data
-    const savedOrders = localStorage.getItem('orderHistory');
-    if (savedOrders) {
-      setOrders(JSON.parse(savedOrders));
-    } else {
-      // Use sample data for demo
-      setOrders(sampleOrders);
-      localStorage.setItem('orderHistory', JSON.stringify(sampleOrders));
-    }
-    
-    setIsLoading(false);
+    const fetchOrders = async () => {
+      const userData = document.cookie.split(';').find(c => c.trim().startsWith('user='))?.split('=')[1];
+      const isAuth = document.cookie.includes('isAuthenticated=true') ? 'true' : 'false';
+      
+      if (!isAuth || !userData) {
+        router.push('/auth/login');
+        return;
+      }
+      
+      const parsedUser = JSON.parse(userData);
+      setUser(parsedUser);
+      
+      try {
+        // Fetch real orders from API
+        const { orderService } = await import('@/services');
+        const response = await orderService.getAll();
+        
+        if (response.success && response.data) {
+          // Use API data if available
+          setOrders(response.data as any);
+        } else {
+          // Fallback to sample data for demo
+          setOrders(sampleOrders);
+        }
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+        // Use sample data on error
+        const savedOrders = localStorage.getItem('orderHistory');
+        if (savedOrders) {
+          setOrders(JSON.parse(savedOrders));
+        } else {
+          setOrders(sampleOrders);
+        }
+      }
+      
+      setIsLoading(false);
+    };
+
+    fetchOrders();
   }, [router]);
 
   const handleReorder = (order: Order) => {
