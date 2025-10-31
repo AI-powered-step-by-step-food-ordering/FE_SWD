@@ -11,6 +11,8 @@ import { getFirebaseThumbnail } from '@/lib/firebase-storage';
 import type { Ingredient, IngredientRequest, Category } from '@/types/api.types';
 import { toast } from 'react-toastify';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+import AdminSearchBar from '@/components/admin/AdminSearchBar';
+import Pagination from '@/components/admin/Pagination';
 
 export default function IngredientsPage() {
   useRequireAdmin();
@@ -20,6 +22,9 @@ export default function IngredientsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
   const [showInactive, setShowInactive] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
   const [formData, setFormData] = useState<IngredientRequest>({
     name: '',
     unit: 'g',
@@ -135,6 +140,18 @@ export default function IngredientsPage() {
     return category?.name || 'Unknown';
   };
 
+  const filteredIngredients = ingredients.filter((ing) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    const name = ing.name?.toLowerCase() || '';
+    const unit = ing.unit?.toLowerCase() || '';
+    const categoryName = getCategoryName(ing.categoryId).toLowerCase();
+    return name.includes(q) || unit.includes(q) || categoryName.includes(q);
+  });
+
+  const startIndex = (page - 1) * pageSize;
+  const pagedIngredients = filteredIngredients.slice(startIndex, startIndex + pageSize);
+
   return (
     <AdminLayout title="Ingredients Management">
       <div className="space-y-6">
@@ -145,6 +162,7 @@ export default function IngredientsPage() {
             <p className="text-sm text-gray-600 mt-1">Manage all ingredients in the system</p>
           </div>
           <div className="flex items-center gap-4">
+            <AdminSearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Tìm nguyên liệu..." />
             {/* Toggle for Active/Inactive */}
             <div className="flex items-center gap-2">
               <span className={`text-sm ${!showInactive ? 'font-medium text-green-600' : 'text-gray-500'}`}>
@@ -187,12 +205,12 @@ export default function IngredientsPage() {
             <div className="col-span-full text-center py-12 text-gray-500">
               Loading...
             </div>
-          ) : ingredients.length === 0 ? (
+          ) : filteredIngredients.length === 0 ? (
             <div className="col-span-full text-center py-12 text-gray-500">
               No ingredients found
             </div>
           ) : (
-            ingredients.map((ingredient) => (
+            pagedIngredients.map((ingredient) => (
               <div key={ingredient.id} className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                 {/* Image */}
                 {ingredient.imageUrl ? (
@@ -271,6 +289,13 @@ export default function IngredientsPage() {
             ))
           )}
         </div>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={filteredIngredients.length}
+          onPageChange={(p) => setPage(p)}
+          onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+        />
       </div>
 
       {/* Modal */}

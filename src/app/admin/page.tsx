@@ -154,6 +154,21 @@ export default function AdminDashboard() {
                 <p className="text-sm text-gray-500">Create new promotion</p>
               </div>
             </Link>
+
+            <Link
+              href="/admin/bowl-templates"
+              className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow-100 text-yellow-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7h16M4 12h16M4 17h16" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-medium text-gray-800">Manage Bowl Templates</p>
+                <p className="text-sm text-gray-500">CRUD for template & steps</p>
+              </div>
+            </Link>
           </div>
         </div>
 

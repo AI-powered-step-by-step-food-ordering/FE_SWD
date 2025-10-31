@@ -9,6 +9,8 @@ import { getFirebaseThumbnail } from '@/lib/firebase-storage';
 import type { Store, StoreRequest } from '@/types/api';
 import { toast } from 'react-toastify';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+import AdminSearchBar from '@/components/admin/AdminSearchBar';
+import Pagination from '@/components/admin/Pagination';
 
 const FirebaseImageUpload = dynamic(() => import('@/components/shared/FirebaseImageUpload'), {
   ssr: false
@@ -20,6 +22,9 @@ export default function StoresPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingStore, setEditingStore] = useState<Store | null>(null);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
   const [formData, setFormData] = useState<StoreRequest>({
     name: '',
     address: '',
@@ -100,6 +105,19 @@ export default function StoresPage() {
     resetForm();
   };
 
+  const filteredStores = stores.filter((s) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    const name = s.name?.toLowerCase() || '';
+    const address = s.address?.toLowerCase() || '';
+    const email = s.email?.toLowerCase() || '';
+    const phone = s.phone?.toLowerCase() || '';
+    return name.includes(q) || address.includes(q) || email.includes(q) || phone.includes(q);
+  });
+
+  const startIndex = (page - 1) * pageSize;
+  const pagedStores = filteredStores.slice(startIndex, startIndex + pageSize);
+
   return (
     <AdminLayout title="Stores Management">
       <div className="space-y-6">
@@ -109,6 +127,8 @@ export default function StoresPage() {
             <h2 className="text-2xl font-bold text-gray-800">Stores</h2>
             <p className="text-sm text-gray-600 mt-1">Manage all stores in the system</p>
           </div>
+          <div className="flex items-center gap-4">
+            <AdminSearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Tìm cửa hàng..." />
           <button
             onClick={() => {
               resetForm();
@@ -121,6 +141,7 @@ export default function StoresPage() {
             </svg>
             Add Store
           </button>
+          </div>
         </div>
 
         {/* Stores Grid */}
@@ -129,12 +150,12 @@ export default function StoresPage() {
             <div className="col-span-full text-center py-12 text-gray-500">
               Loading...
             </div>
-          ) : stores.length === 0 ? (
+          ) : filteredStores.length === 0 ? (
             <div className="col-span-full text-center py-12 text-gray-500">
               No stores found
             </div>
           ) : (
-            stores.map((store) => (
+            pagedStores.map((store) => (
               <div key={store.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
@@ -209,6 +230,13 @@ export default function StoresPage() {
             ))
           )}
         </div>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={filteredStores.length}
+          onPageChange={(p) => setPage(p)}
+          onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+        />
       </div>
 
       {/* Modal */}

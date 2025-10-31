@@ -7,6 +7,8 @@ import userService from '@/services/user.service';
 import type { User, UserCreateRequest, UserUpdateRequest } from '@/types/api.types';
 import { toast } from 'react-toastify';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+import AdminSearchBar from '@/components/admin/AdminSearchBar';
+import Pagination from '@/components/admin/Pagination';
 
 export default function UsersPage() {
   useRequireAdmin();
@@ -15,6 +17,9 @@ export default function UsersPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showInactive, setShowInactive] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [formData, setFormData] = useState<UserCreateRequest>({
     fullName: '',
     email: '',
@@ -148,6 +153,19 @@ export default function UsersPage() {
     resetForm();
   };
 
+  const filteredUsers = users.filter((u) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    const fullName = u.fullName?.toLowerCase() || '';
+    const email = u.email?.toLowerCase() || '';
+    const role = (u.role || '').toLowerCase();
+    const status = (u.status || '').toLowerCase();
+    return fullName.includes(q) || email.includes(q) || role.includes(q) || status.includes(q);
+  });
+
+  const startIndex = (page - 1) * pageSize;
+  const pagedUsers = filteredUsers.slice(startIndex, startIndex + pageSize);
+
   return (
     <AdminLayout title="Users Management">
       <div className="space-y-6">
@@ -158,6 +176,7 @@ export default function UsersPage() {
             <p className="text-sm text-gray-600 mt-1">Manage all users in the system</p>
           </div>
           <div className="flex items-center gap-4">
+            <AdminSearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Tìm người dùng..." />
             {/* Toggle for Active/Inactive Users */}
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-gray-700">
@@ -227,14 +246,14 @@ export default function UsersPage() {
                       Loading...
                     </td>
                   </tr>
-                ) : users.length === 0 ? (
+                ) : filteredUsers.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                       No users found
                     </td>
                   </tr>
                 ) : (
-                  users.map((user) => (
+                  pagedUsers.map((user) => (
                     <tr key={user.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">{user.fullName}</div>
@@ -298,6 +317,13 @@ export default function UsersPage() {
             </table>
           </div>
         </div>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={filteredUsers.length}
+          onPageChange={(p) => setPage(p)}
+          onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+        />
       </div>
 
       {/* Modal */}

@@ -161,13 +161,15 @@ export interface BowlTemplate {
   id: string;
   name: string;
   description: string;
-  isActive: boolean;
+  isActive?: boolean;
+  active?: boolean; // backend may return 'active'
 }
 
 export interface BowlTemplateRequest {
   name: string;
   description: string;
-  isActive: boolean;
+  isActive?: boolean;
+  active?: boolean; // backend may expect 'active'
 }
 
 // Template Step Types

@@ -10,12 +10,17 @@ import type { Order, Bowl, BowlItem, PaymentTransaction, Store, User } from "@/t
 import { toast } from "react-toastify";
 import { formatVND } from '@/lib/format-number';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+import AdminSearchBar from '@/components/admin/AdminSearchBar';
+import Pagination from '@/components/admin/Pagination';
 
 export default function OrdersPage() {
   useRequireAdmin();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("ALL");
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   
   // Modal state for order details
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -143,6 +148,19 @@ export default function OrdersPage() {
       ? orders
       : orders.filter((order) => order.status === filter);
 
+  const searchedOrders = filteredOrders.filter((order) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    const id = order.id?.toLowerCase() || '';
+    const userId = order.userId?.toLowerCase() || '';
+    const storeId = order.storeId?.toLowerCase() || '';
+    const status = order.status?.toLowerCase() || '';
+    return id.includes(q) || userId.includes(q) || storeId.includes(q) || status.includes(q);
+  });
+
+  const startIndex = (page - 1) * pageSize;
+  const pagedOrders = searchedOrders.slice(startIndex, startIndex + pageSize);
+
   const getStatusColor = (status: string) => {
     switch (status.toUpperCase()) {
       case "PENDING":
@@ -174,6 +192,7 @@ export default function OrdersPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <AdminSearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Tìm đơn hàng..." />
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
@@ -254,7 +273,7 @@ export default function OrdersPage() {
                       Loading...
                     </td>
                   </tr>
-                ) : filteredOrders.length === 0 ? (
+                ) : searchedOrders.length === 0 ? (
                   <tr>
                     <td
                       colSpan={8}
@@ -264,7 +283,7 @@ export default function OrdersPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredOrders.map((order) => (
+                  pagedOrders.map((order) => (
                     <tr key={order.id} className="hover:bg-gray-50">
                       <td className="whitespace-nowrap px-6 py-4">
                         <div className="font-mono text-sm text-gray-900">
@@ -351,6 +370,13 @@ export default function OrdersPage() {
             </table>
           </div>
         </div>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={searchedOrders.length}
+          onPageChange={(p) => setPage(p)}
+          onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+        />
       </div>
 
       {/* Order Details Modal */}

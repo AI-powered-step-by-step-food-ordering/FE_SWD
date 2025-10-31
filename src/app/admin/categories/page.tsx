@@ -10,6 +10,8 @@ import { getFirebaseThumbnail } from "@/lib/firebase-storage";
 import type { Category, CategoryRequest } from "@/types/api";
 import { toast } from "react-toastify";
 import { useRequireAdmin } from "@/hooks/useRequireAdmin";
+import AdminSearchBar from '@/components/admin/AdminSearchBar';
+import Pagination from '@/components/admin/Pagination';
 
 export default function CategoriesPage() {
   const FirebaseImageUpload = dynamic(
@@ -27,6 +29,9 @@ export default function CategoriesPage() {
     kind: "CARB",
     imageUrl: "",
   });
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     loadCategories();
@@ -122,6 +127,19 @@ export default function CategoriesPage() {
     resetForm();
   };
 
+  // Derived search & pagination
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredCategories = categories.filter((c) => {
+    if (!normalizedSearch) return true;
+    return (
+      c.name?.toLowerCase().includes(normalizedSearch) ||
+      c.kind?.toLowerCase().includes(normalizedSearch) ||
+      c.id?.toLowerCase().includes(normalizedSearch)
+    );
+  });
+  const startIndex = (page - 1) * pageSize;
+  const pagedCategories = filteredCategories.slice(startIndex, startIndex + pageSize);
+
   return (
     <AdminLayout title="Categories Management">
       <div className="space-y-6">
@@ -134,6 +152,7 @@ export default function CategoriesPage() {
             </p>
           </div>
           <div className="flex items-center gap-4">
+            <AdminSearchBar value={search} onChange={(v)=>{ setSearch(v); setPage(1); }} placeholder="Tìm category..." />
             <div className="flex items-center gap-2">
               <span className={`text-sm ${!showInactive ? 'font-medium text-green-600' : 'text-gray-500'}`}>
                 Active
@@ -223,7 +242,7 @@ export default function CategoriesPage() {
                     </td>
                   </tr>
                 ) : (
-                  categories.map((category) => (
+                  pagedCategories.map((category) => (
                     <tr key={category.id} className="hover:bg-gray-50">
                       <td className="whitespace-nowrap px-6 py-4">
                         {category.imageUrl ? (
@@ -295,6 +314,15 @@ export default function CategoriesPage() {
                 )}
               </tbody>
             </table>
+          </div>
+          <div className="px-6 pb-4">
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              total={filteredCategories.length}
+              onPageChange={(p)=>setPage(p)}
+              onPageSizeChange={(s)=>{ setPageSize(s); setPage(1); }}
+            />
           </div>
         </div>
       </div>
