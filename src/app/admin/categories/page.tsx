@@ -4,15 +4,18 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import AdminLayout from "@/components/admin/AdminLayout";
 import dynamic from "next/dynamic";
-import apiClient from '@/services/api.config';
-import categoryService from '@/services/category.service';
+import apiClient from "@/services/api.config";
+import categoryService from "@/services/category.service";
 import { getFirebaseThumbnail } from "@/lib/firebase-storage";
 import type { Category, CategoryRequest } from "@/types/api";
 import { toast } from "react-toastify";
-import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+import { useRequireAdmin } from "@/hooks/useRequireAdmin";
 
 export default function CategoriesPage() {
-  const FirebaseImageUpload = dynamic(() => import("@/components/shared/FirebaseImageUpload"), { ssr: false });
+  const FirebaseImageUpload = dynamic(
+    () => import("@/components/shared/FirebaseImageUpload"),
+    { ssr: false },
+  );
   useRequireAdmin();
   const [categories, setCategories] = useState<Category[]>([]);
   const [showInactive, setShowInactive] = useState(false);
@@ -32,13 +35,13 @@ export default function CategoriesPage() {
   const loadCategories = async () => {
     try {
       setLoading(true);
-      let data;
       if (showInactive) {
-        data = await categoryService.getInactive();
+        const res = await categoryService.getInactive();
+        setCategories(res?.data || []);
       } else {
-        data = await categoryService.getActiveCategories();
+        const active = await categoryService.getActiveCategories();
+        setCategories(active || []);
       }
-      setCategories(data);
     } catch (error) {
       console.error("Error loading categories:", error);
       toast.error("Failed to load categories");
@@ -51,18 +54,21 @@ export default function CategoriesPage() {
     e.preventDefault();
     try {
       if (editingCategory) {
-        await apiClient.put(`/api/categories/update/${editingCategory.id}`, formData);
-        toast.success('Category updated successfully');
+        await apiClient.put(
+          `/api/categories/update/${editingCategory.id}`,
+          formData,
+        );
+        toast.success("Category updated successfully");
       } else {
-        await apiClient.post('/api/categories/create', formData);
-        toast.success('Category created successfully');
+        await apiClient.post("/api/categories/create", formData);
+        toast.success("Category created successfully");
       }
       setShowModal(false);
       resetForm();
       loadCategories();
     } catch (error) {
-      console.error('Failed to save category:', error);
-      toast.error('Failed to save category');
+      console.error("Failed to save category:", error);
+      toast.error("Failed to save category");
     }
   };
 
@@ -129,15 +135,25 @@ export default function CategoriesPage() {
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700">
-                Show Inactive:
-              </label>
-              <input
-                type="checkbox"
-                checked={showInactive}
-                onChange={(e) => setShowInactive(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-              />
+              <span className={`text-sm ${!showInactive ? 'font-medium text-green-600' : 'text-gray-500'}`}>
+                Active
+              </span>
+              <button
+                onClick={() => setShowInactive(!showInactive)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  showInactive ? 'bg-red-600' : 'bg-green-600'
+                }`}
+                aria-label="Toggle Active/Inactive"
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    showInactive ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className={`text-sm ${showInactive ? 'font-medium text-red-600' : 'text-gray-500'}`}>
+                Inactive
+              </span>
             </div>
             <button
               onClick={() => {
@@ -237,40 +253,42 @@ export default function CategoriesPage() {
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
-                         <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                           category.isActive 
-                             ? 'bg-green-100 text-green-800' 
-                             : 'bg-red-100 text-red-800'
-                         }`}>
-                           {category.isActive ? 'Active' : 'Inactive'}
-                         </span>
-                       </td>
-                       <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                         {!category.isActive ? (
-                           <>
-                             <button
-                               onClick={() => handleRestore(category.id)}
-                               className="mr-4 text-green-600 hover:text-green-900"
-                             >
-                               Restore
-                             </button>
-                           </>
-                         ) : (
-                           <>
-                             <button
-                               onClick={() => handleEdit(category)}
-                               className="mr-4 text-blue-600 hover:text-blue-900"
-                             >
-                               Edit
-                             </button>
-                             <button
-                               onClick={() => handleSoftDelete(category.id)}
-                               className="text-orange-600 hover:text-orange-900"
-                             >
-                               Soft Delete
-                             </button>
-                           </>
-                         )}
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                            category.isActive
+                              ? "bg-green-100 text-green-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
+                        >
+                          {category.isActive ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
+                        {!category.isActive ? (
+                          <>
+                            <button
+                              onClick={() => handleRestore(category.id)}
+                              className="mr-4 text-green-600 hover:text-green-900"
+                            >
+                              Restore
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleEdit(category)}
+                              className="mr-4 text-blue-600 hover:text-blue-900"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleSoftDelete(category.id)}
+                              className="text-orange-600 hover:text-orange-900"
+                            >
+                              Soft Delete
+                            </button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))

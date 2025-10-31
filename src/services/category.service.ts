@@ -6,16 +6,31 @@ class CategoryService {
    * Get all categories
    */
   async getAll(): Promise<ApiResponse<Category[]>> {
-    const response = await apiClient.get<ApiResponse<Category[]>>('/api/categories/getall');
-    return response.data;
+    const response = await apiClient.get<ApiResponse<any[]>>('/api/categories/getall');
+    const res = response.data as ApiResponse<any[]>;
+    if (res?.data) {
+      // Normalize backend `active` -> frontend `isActive`
+      res.data = res.data.map((cat: any) => ({
+        ...cat,
+        isActive: typeof cat.isActive === 'boolean' ? cat.isActive : !!cat.active,
+      }));
+    }
+    return res as ApiResponse<Category[]>;
   }
 
   /**
    * Get category by ID
    */
   async getById(id: string): Promise<ApiResponse<Category>> {
-    const response = await apiClient.get<ApiResponse<Category>>(`/api/categories/getbyid/${id}`);
-    return response.data;
+    const response = await apiClient.get<ApiResponse<any>>(`/api/categories/getbyid/${id}`);
+    const res = response.data as ApiResponse<any>;
+    if (res?.data) {
+      res.data = {
+        ...res.data,
+        isActive: typeof res.data.isActive === 'boolean' ? res.data.isActive : !!res.data.active,
+      };
+    }
+    return res as ApiResponse<Category>;
   }
 
   /**
@@ -50,11 +65,12 @@ class CategoryService {
       throw new Error('Category not found');
     }
 
-    const categoryData: CategoryRequest = {
+    const categoryData: any = {
       name: categoryResponse.data.name,
       kind: categoryResponse.data.kind,
       displayOrder: categoryResponse.data.displayOrder,
-      isActive: false // Set to inactive
+      isActive: false, // frontend field
+      active: false,   // backend field compatibility
     };
 
     const response = await apiClient.put<ApiResponse<Category>>(
@@ -74,11 +90,12 @@ class CategoryService {
       throw new Error('Category not found');
     }
 
-    const categoryData: CategoryRequest = {
+    const categoryData: any = {
       name: categoryResponse.data.name,
       kind: categoryResponse.data.kind,
       displayOrder: categoryResponse.data.displayOrder,
-      isActive: true // Set to active
+      isActive: true,  // frontend field
+      active: true,    // backend field compatibility
     };
 
     const response = await apiClient.put<ApiResponse<Category>>(

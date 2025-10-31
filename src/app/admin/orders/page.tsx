@@ -8,6 +8,7 @@ import bowlService from '@/services/bowl.service';
 import paymentService from '@/services/payment.service';
 import type { Order, Bowl, BowlItem, PaymentTransaction, Store, User } from "@/types/api";
 import { toast } from "react-toastify";
+import { formatVND } from '@/lib/format-number';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 
 export default function OrdersPage() {
@@ -289,17 +290,17 @@ export default function OrdersPage() {
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right">
                         <div className="text-sm text-gray-900">
-                          ${order.subtotalAmount?.toFixed(2) || "0.00"}
+                          {formatVND(order.subtotalAmount ?? 0)}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right">
                         <div className="text-sm text-green-600">
-                          -${order.promotionTotal?.toFixed(2) || "0.00"}
+                          -{formatVND(order.promotionTotal ?? 0)}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right">
                         <div className="text-sm font-semibold text-gray-900">
-                          ${order.totalAmount?.toFixed(2) || "0.00"}
+                          {formatVND(order.totalAmount ?? 0)}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
@@ -420,15 +421,15 @@ export default function OrdersPage() {
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span>Subtotal:</span>
-                      <span>${selectedOrder.subtotalAmount?.toFixed(2) || '0.00'}</span>
+                      <span>{formatVND(selectedOrder.subtotalAmount ?? 0)}</span>
                     </div>
                     <div className="flex justify-between text-green-600">
                       <span>Discount:</span>
-                      <span>-${selectedOrder.promotionTotal?.toFixed(2) || '0.00'}</span>
+                      <span>-{formatVND(selectedOrder.promotionTotal ?? 0)}</span>
                     </div>
                     <div className="flex justify-between font-semibold text-lg border-t pt-2">
                       <span>Total:</span>
-                      <span>${selectedOrder.totalAmount?.toFixed(2) || '0.00'}</span>
+                      <span>{formatVND(selectedOrder.totalAmount ?? 0)}</span>
                     </div>
                   </div>
                 </div>
@@ -448,7 +449,7 @@ export default function OrdersPage() {
                               <p className="text-sm text-gray-600 font-mono">Bowl ID: {bowl.id}</p>
                             </div>
                             <div className="text-right">
-                              <p className="font-semibold">${bowl.totalPrice?.toFixed(2) || '0.00'}</p>
+                              <p className="font-semibold">{formatVND(bowl.totalPrice ?? 0)}</p>
                               <p className="text-sm text-gray-600">Qty: {bowl.quantity || 1}</p>
                             </div>
                           </div>
@@ -492,7 +493,7 @@ export default function OrdersPage() {
                             </div>
                             <div>
                               <span className="text-sm text-gray-600">Amount:</span>
-                              <p className="font-semibold">${payment.amount?.toFixed(2) || '0.00'}</p>
+                              <p className="font-semibold">{formatVND(payment.amount ?? 0)}</p>
                             </div>
                             <div>
                               <span className="text-sm text-gray-600">Status:</span>

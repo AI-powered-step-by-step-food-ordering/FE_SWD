@@ -5,6 +5,7 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import apiClient from '@/services/api.config';
 import type { Promotion, PromotionRequest } from '@/types/api';
 import { toast } from 'react-toastify';
+import { formatVND } from '@/lib/format-number';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 
 export default function PromotionsPage() {
@@ -167,7 +168,7 @@ export default function PromotionsPage() {
                     <span className="font-semibold text-green-600">
                       {promotion.discountType === 'PERCENTAGE'
                         ? `${promotion.discountValue}%`
-                        : `$${promotion.discountValue.toFixed(2)}`}
+                        : formatVND(promotion.discountValue ?? 0)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">

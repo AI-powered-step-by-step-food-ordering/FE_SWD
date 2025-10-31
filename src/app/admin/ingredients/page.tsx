@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import AdminLayout from '@/components/admin/AdminLayout';
 import FirebaseImageUpload from '@/components/shared/FirebaseImageUpload';
+import { formatVND } from '@/lib/format-number';
 import apiClient from '@/services/api.config';
 import ingredientService from '@/services/ingredient.service';
 import { getFirebaseThumbnail } from '@/lib/firebase-storage';
@@ -232,7 +233,7 @@ export default function IngredientsPage() {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Price:</span>
-                      <span className="font-medium text-green-600">${ingredient.unitPrice.toFixed(2)}</span>
+                      <span className="font-medium text-green-600">{formatVND(ingredient.unitPrice ?? 0)}</span>
                     </div>
                   </div>
 
@@ -354,7 +355,7 @@ export default function IngredientsPage() {
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Unit Price * ($)
+                        Unit Price * (₫)
                       </label>
                       <input
                         type="number"
