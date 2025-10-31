@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import apiClient from '@/services/api.config';
-import type { User, UserRequest } from '@/types/api';
+import userService from '@/services/user.service';
+import type { User, UserCreateRequest, UserUpdateRequest } from '@/types/api.types';
 import { toast } from 'react-toastify';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+import AdminSearchBar from '@/components/admin/AdminSearchBar';
+import Pagination from '@/components/admin/Pagination';
 
 export default function UsersPage() {
   useRequireAdmin();
@@ -13,24 +16,35 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [formData, setFormData] = useState<UserRequest>({
+  const [showInactive, setShowInactive] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [formData, setFormData] = useState<UserCreateRequest>({
     fullName: '',
     email: '',
     password: '',
+    passwordConfirm: '',
     goalCode: 'WEIGHT_LOSS',
     role: 'USER',
-    status: 'ACTIVE',
   });
 
   useEffect(() => {
     loadUsers();
-  }, []);
+  }, [showInactive]);
 
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get<{ data: User[] }>('/api/users/getall');
-      setUsers(response.data?.data || []);
+      const response = showInactive 
+        ? await userService.getInactive()
+        : await apiClient.get<{ data: User[] }>('/api/users/getall');
+      
+      if (showInactive) {
+        setUsers(response.data || []);
+      } else {
+        setUsers(response.data?.data || []);
+      }
     } catch (error) {
       console.error('Failed to load users:', error);
       toast.error('Failed to load users');
@@ -44,9 +58,24 @@ export default function UsersPage() {
     
     try {
       if (editingUser) {
-        await apiClient.put(`/api/users/update/${editingUser.id}`, formData);
+        // For updates, use UserUpdateRequest (no password, no role change)
+        const updateData: UserUpdateRequest = {
+          fullName: formData.fullName,
+          email: formData.email,
+          goalCode: formData.goalCode,
+          imageUrl: formData.imageUrl,
+          dateOfBirth: formData.dateOfBirth,
+          address: formData.address,
+          phone: formData.phone,
+        };
+        await apiClient.put(`/api/users/update/${editingUser.id}`, updateData);
         toast.success('User updated successfully');
       } else {
+        // For creation, use UserCreateRequest
+        if (formData.password !== formData.passwordConfirm) {
+          toast.error('Passwords do not match');
+          return;
+        }
         await apiClient.post('/api/users/create', formData);
         toast.success('User created successfully');
       }
@@ -60,16 +89,29 @@ export default function UsersPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
+  const handleSoftDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to soft delete this user?')) return;
     
     try {
-      await apiClient.delete(`/api/users/delete/${id}`);
-      toast.success('User deleted successfully');
+      await userService.softDelete(id);
+      toast.success('User soft deleted successfully');
       loadUsers();
     } catch (error) {
-      console.error('Failed to delete user:', error);
-      toast.error('Failed to delete user');
+      console.error('Failed to soft delete user:', error);
+      toast.error('Failed to soft delete user');
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    if (!confirm('Are you sure you want to restore this user?')) return;
+    
+    try {
+      await userService.restore(id);
+      toast.success('User restored successfully');
+      loadUsers();
+    } catch (error) {
+      console.error('Failed to restore user:', error);
+      toast.error('Failed to restore user');
     }
   };
 
@@ -79,9 +121,13 @@ export default function UsersPage() {
       fullName: user.fullName,
       email: user.email,
       password: '',
-      goalCode: user.goalCode,
-      role: user.role,
-      status: user.status,
+      passwordConfirm: '',
+      goalCode: user.goalCode || 'WEIGHT_LOSS',
+      role: user.role as 'ADMIN' | 'USER',
+      imageUrl: user.imageUrl || '',
+      dateOfBirth: user.dateOfBirth || '',
+      address: user.address || '',
+      phone: user.phone || '',
     });
     setShowModal(true);
   };
@@ -92,9 +138,13 @@ export default function UsersPage() {
       fullName: '',
       email: '',
       password: '',
+      passwordConfirm: '',
       goalCode: 'WEIGHT_LOSS',
       role: 'USER',
-      status: 'ACTIVE',
+      imageUrl: '',
+      dateOfBirth: '',
+      address: '',
+      phone: '',
     });
   };
 
@@ -102,6 +152,19 @@ export default function UsersPage() {
     setShowModal(false);
     resetForm();
   };
+
+  const filteredUsers = users.filter((u) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    const fullName = u.fullName?.toLowerCase() || '';
+    const email = u.email?.toLowerCase() || '';
+    const role = (u.role || '').toLowerCase();
+    const status = (u.status || '').toLowerCase();
+    return fullName.includes(q) || email.includes(q) || role.includes(q) || status.includes(q);
+  });
+
+  const startIndex = (page - 1) * pageSize;
+  const pagedUsers = filteredUsers.slice(startIndex, startIndex + pageSize);
 
   return (
     <AdminLayout title="Users Management">
@@ -112,18 +175,39 @@ export default function UsersPage() {
             <h2 className="text-2xl font-bold text-gray-800">Users</h2>
             <p className="text-sm text-gray-600 mt-1">Manage all users in the system</p>
           </div>
-          <button
-            onClick={() => {
-              resetForm();
-              setShowModal(true);
-            }}
-            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-          >
+          <div className="flex items-center gap-4">
+            <AdminSearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Tìm người dùng..." />
+            {/* Toggle for Active/Inactive Users */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">
+                Show Inactive Users
+              </label>
+              <button
+                onClick={() => setShowInactive(!showInactive)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  showInactive ? 'bg-green-600' : 'bg-gray-200'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    showInactive ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+            <button
+              onClick={() => {
+                resetForm();
+                setShowModal(true);
+              }}
+              className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+            >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
             Add User
           </button>
+          </div>
         </div>
 
         {/* Users Table */}
@@ -145,6 +229,9 @@ export default function UsersPage() {
                     Role
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Phone
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -155,18 +242,18 @@ export default function UsersPage() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                    <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                       Loading...
                     </td>
                   </tr>
-                ) : users.length === 0 ? (
+                ) : filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                    <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                       No users found
                     </td>
                   </tr>
                 ) : (
-                  users.map((user) => (
+                  pagedUsers.map((user) => (
                     <tr key={user.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">{user.fullName}</div>
@@ -185,6 +272,9 @@ export default function UsersPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{user.phone || '-'}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                           user.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                         }`}>
@@ -192,18 +282,33 @@ export default function UsersPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          onClick={() => handleEdit(user)}
-                          className="text-blue-600 hover:text-blue-900 mr-4"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(user.id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          Delete
-                        </button>
+                        {user.status === 'DELETED' ? (
+                          // Actions for deleted users
+                          <>
+                            <button
+                              onClick={() => handleRestore(user.id)}
+                              className="text-green-600 hover:text-green-900 mr-4"
+                            >
+                              Restore
+                            </button>
+                          </>
+                        ) : (
+                          // Actions for active users
+                          <>
+                            <button
+                              onClick={() => handleEdit(user)}
+                              className="text-blue-600 hover:text-blue-900 mr-4"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleSoftDelete(user.id)}
+                              className="text-orange-600 hover:text-orange-900"
+                            >
+                              Soft Delete
+                            </button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -212,6 +317,13 @@ export default function UsersPage() {
             </table>
           </div>
         </div>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={filteredUsers.length}
+          onPageChange={(p) => setPage(p)}
+          onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+        />
       </div>
 
       {/* Modal */}
@@ -255,18 +367,33 @@ export default function UsersPage() {
                     </div>
 
                     {!editingUser && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Password *
-                        </label>
-                        <input
-                          type="password"
-                          required={!editingUser}
-                          value={formData.password}
-                          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                        />
-                      </div>
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Password *
+                          </label>
+                          <input
+                            type="password"
+                            required={!editingUser}
+                            value={formData.password}
+                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Confirm Password *
+                          </label>
+                          <input
+                            type="password"
+                            required={!editingUser}
+                            value={formData.passwordConfirm}
+                            onChange={(e) => setFormData({ ...formData, passwordConfirm: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                          />
+                        </div>
+                      </>
                     )}
 
                     <div>
@@ -294,6 +421,7 @@ export default function UsersPage() {
                         value={formData.role}
                         onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                        disabled={editingUser} // Role cannot be changed during edit
                       >
                         <option value="USER">User</option>
                         <option value="ADMIN">Admin</option>
@@ -302,17 +430,51 @@ export default function UsersPage() {
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Status *
+                        Phone
                       </label>
-                      <select
-                        required
-                        value={formData.status}
-                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                      <input
+                        type="tel"
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                      >
-                        <option value="ACTIVE">Active</option>
-                        <option value="INACTIVE">Inactive</option>
-                      </select>
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Address
+                      </label>
+                      <textarea
+                        value={formData.address}
+                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                        rows={2}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Date of Birth
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.dateOfBirth}
+                        onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Image URL
+                      </label>
+                      <input
+                        type="url"
+                        value={formData.imageUrl}
+                        onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                        placeholder="https://example.com/image.jpg"
+                      />
                     </div>
                   </div>
                 </div>

@@ -70,30 +70,46 @@ export interface ResetPasswordRequest {
 
 // User Types
 export interface User {
-  id: string;
-  email: string;
+  id: string; // UUID as string
   fullName: string;
-  role: string;
+  email: string;
   goalCode?: string;
-  status?: string;
+  role: string;
+  status: string;
   imageUrl?: string;
-  dateOfBirth?: string; // ISO date string
+  dateOfBirth?: string; // LocalDate format: "2025-10-30"
   address?: string;
   phone?: string;
-  gender?: string; // MALE, FEMALE, OTHER
-  createdAt?: string;
-  updatedAt?: string;
+  createdAt?: string; // ZonedDateTime for admin response
+  // Frontend-only fields for compatibility
+  gender?: string; // MALE, FEMALE, OTHER (frontend only)
 }
 
 export interface UserUpdateRequest {
-  fullName?: string;
-  email?: string;
+  fullName: string; // Required in backend
+  email: string; // Required in backend
   goalCode?: string;
   imageUrl?: string;
-  dateOfBirth?: string; // ISO date string
+  dateOfBirth?: string; // LocalDate from backend
   address?: string;
   phone?: string;
-  gender?: string; // MALE, FEMALE, OTHER
+  gender?: string; // Frontend only field, not sent to backend
+  // Note: status is not included - use /soft-delete or /restore endpoints
+  // Note: password updates should use separate endpoint
+}
+
+export interface UserCreateRequest {
+  fullName: string;
+  email: string;
+  password: string;
+  passwordConfirm: string;
+  goalCode?: string;
+  role?: 'ADMIN' | 'USER';
+  // Additional fields for admin creation
+  imageUrl?: string;
+  dateOfBirth?: string;
+  address?: string;
+  phone?: string;
 }
 
 // Category Types
@@ -114,26 +130,30 @@ export interface CategoryRequest {
 
 // Ingredient Types
 export interface Ingredient {
-  id: string;
   name: string;
   unit: string;
+  standardQuantity: number;
   unitPrice: number;
-  categoryId: string;
-  imageUrl?: string;
-  description?: string;
+  categoryId: string; // UUID format: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+  imageUrl: string;
+  // Additional fields for compatibility
+  id?: string; // Optional for compatibility
+  description?: string; // Optional for compatibility
   nutrition?: {
     calories: number;
     protein: number;
     carbs: number;
     fat: number;
-  };
+  }; // Optional for compatibility
 }
 
 export interface IngredientRequest {
   name: string;
   unit: string;
+  standardQuantity: number;
   unitPrice: number;
-  categoryId: string;
+  categoryId: string; // UUID format
+  imageUrl: string;
 }
 
 // Bowl Template Types
@@ -141,13 +161,15 @@ export interface BowlTemplate {
   id: string;
   name: string;
   description: string;
-  isActive: boolean;
+  isActive?: boolean;
+  active?: boolean; // backend may return 'active'
 }
 
 export interface BowlTemplateRequest {
   name: string;
   description: string;
-  isActive: boolean;
+  isActive?: boolean;
+  active?: boolean; // backend may expect 'active'
 }
 
 // Template Step Types
@@ -186,24 +208,28 @@ export interface StoreRequest {
 
 // Order Types
 export interface Order {
-  id: string;
-  userId: string;
-  storeId: string;
+  id: string; // UUID as string
+  userId: string; // UUID as string
+  storeId: string; // UUID as string
   status: string;
-  subtotalAmount: number;
-  promotionTotal: number;
-  totalAmount: number;
-  pickupAt?: string;
-  note?: string;
-  createdAt?: string;
-  updatedAt?: string;
+  subtotalAmount: number; // Double from backend
+  promotionTotal: number; // Double from backend
+  totalAmount: number; // Double from backend
+  pickupAt?: string; // ISO string for OffsetDateTime (only in request)
+  note?: string; // Only in request
+  createdAt?: string; // ZonedDateTime from backend
+  updatedAt?: string; // Not in backend DTO but kept for compatibility
 }
 
 export interface OrderRequest {
-  pickupAt?: string;
+  pickupAt?: string; // ISO string for OffsetDateTime
   note?: string;
-  storeId: string;
-  userId: string;
+  storeId: string; // UUID as string
+  userId: string; // UUID as string
+}
+
+export interface UpdateOrderStatusRequest {
+  status: string;
 }
 
 // Bowl Types

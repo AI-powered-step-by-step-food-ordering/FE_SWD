@@ -6,16 +6,31 @@ class CategoryService {
    * Get all categories
    */
   async getAll(): Promise<ApiResponse<Category[]>> {
-    const response = await apiClient.get<ApiResponse<Category[]>>('/api/categories/getall');
-    return response.data;
+    const response = await apiClient.get<ApiResponse<any[]>>('/api/categories/getall');
+    const res = response.data as ApiResponse<any[]>;
+    if (res?.data) {
+      // Normalize backend `active` -> frontend `isActive`
+      res.data = res.data.map((cat: any) => ({
+        ...cat,
+        isActive: typeof cat.isActive === 'boolean' ? cat.isActive : !!cat.active,
+      }));
+    }
+    return res as ApiResponse<Category[]>;
   }
 
   /**
    * Get category by ID
    */
   async getById(id: string): Promise<ApiResponse<Category>> {
-    const response = await apiClient.get<ApiResponse<Category>>(`/api/categories/getbyid/${id}`);
-    return response.data;
+    const response = await apiClient.get<ApiResponse<any>>(`/api/categories/getbyid/${id}`);
+    const res = response.data as ApiResponse<any>;
+    if (res?.data) {
+      res.data = {
+        ...res.data,
+        isActive: typeof res.data.isActive === 'boolean' ? res.data.isActive : !!res.data.active,
+      };
+    }
+    return res as ApiResponse<Category>;
   }
 
   /**
@@ -41,6 +56,56 @@ class CategoryService {
   }
 
   /**
+   * Soft delete category (Admin only) - Sets isActive to false
+   */
+  async softDelete(id: string): Promise<ApiResponse<Category>> {
+    // Get current category data
+    const categoryResponse = await this.getById(id);
+    if (!categoryResponse.success || !categoryResponse.data) {
+      throw new Error('Category not found');
+    }
+
+    const categoryData: any = {
+      name: categoryResponse.data.name,
+      kind: categoryResponse.data.kind,
+      displayOrder: categoryResponse.data.displayOrder,
+      isActive: false, // frontend field
+      active: false,   // backend field compatibility
+    };
+
+    const response = await apiClient.put<ApiResponse<Category>>(
+      `/api/categories/update/${id}`,
+      categoryData
+    );
+    return response.data;
+  }
+
+  /**
+   * Restore soft-deleted category (Admin only) - Sets isActive to true
+   */
+  async restore(id: string): Promise<ApiResponse<Category>> {
+    // Get current category data
+    const categoryResponse = await this.getById(id);
+    if (!categoryResponse.success || !categoryResponse.data) {
+      throw new Error('Category not found');
+    }
+
+    const categoryData: any = {
+      name: categoryResponse.data.name,
+      kind: categoryResponse.data.kind,
+      displayOrder: categoryResponse.data.displayOrder,
+      isActive: true,  // frontend field
+      active: true,    // backend field compatibility
+    };
+
+    const response = await apiClient.put<ApiResponse<Category>>(
+      `/api/categories/update/${id}`,
+      categoryData
+    );
+    return response.data;
+  }
+
+  /**
    * Delete category (Admin only)
    */
   async delete(id: string): Promise<ApiResponse<Record<string, never>>> {
@@ -48,6 +113,21 @@ class CategoryService {
       `/api/categories/delete/${id}`
     );
     return response.data;
+  }
+
+  /**
+   * Get inactive categories (Admin only)
+   */
+  async getInactive(): Promise<ApiResponse<Category[]>> {
+    const response = await this.getAll();
+    if (response.success && response.data) {
+      const inactiveCategories = response.data.filter((cat) => !cat.isActive);
+      return {
+        ...response,
+        data: inactiveCategories
+      };
+    }
+    return response;
   }
 
   /**

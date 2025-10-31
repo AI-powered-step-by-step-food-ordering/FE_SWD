@@ -49,12 +49,53 @@ class UserService {
   }
 
   /**
+   * Get inactive users (Admin only)
+   */
+  async getInactive(): Promise<ApiResponse<User[]>> {
+    const response = await apiClient.get<ApiResponse<User[]>>('/api/users/inactive');
+    return response.data;
+  }
+
+  /**
+   * Get user by ID for admin (includes deleted users)
+   */
+  async getByIdAdmin(id: string): Promise<ApiResponse<User>> {
+    const response = await apiClient.get<ApiResponse<User>>(`/api/users/admin/getbyid/${id}`);
+    return response.data;
+  }
+
+  /**
+   * Create new user (Admin only)
+   */
+  async create(userData: UserUpdateRequest & { password: string }): Promise<ApiResponse<User>> {
+    const response = await apiClient.post<ApiResponse<User>>(
+      '/api/users/create',
+      userData
+    );
+    return response.data;
+  }
+
+  /**
+   * Restore soft-deleted user (Admin only)
+   */
+  async restore(id: string): Promise<ApiResponse<User>> {
+    const response = await apiClient.put<ApiResponse<User>>(`/api/users/restore/${id}`);
+    return response.data;
+  }
+
+  /**
+   * Soft delete user (Admin only)
+   */
+  async softDelete(id: string): Promise<ApiResponse<Record<string, never>>> {
+    const response = await apiClient.put<ApiResponse<Record<string, never>>>(`/api/users/soft-delete/${id}`);
+    return response.data;
+  }
+
+  /**
    * Delete user (Admin only)
    */
   async delete(id: string): Promise<ApiResponse<Record<string, never>>> {
-    const response = await apiClient.delete<ApiResponse<Record<string, never>>>(
-      `/api/users/delete/${id}`
-    );
+    const response = await apiClient.delete<ApiResponse<Record<string, never>>>(`/api/users/delete/${id}`);
     return response.data;
   }
 

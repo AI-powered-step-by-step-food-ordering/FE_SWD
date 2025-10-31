@@ -41,6 +41,42 @@ class IngredientService {
   }
 
   /**
+   * Get active ingredients
+   */
+  async getActive(): Promise<ApiResponse<Ingredient[]>> {
+    const response = await apiClient.get<ApiResponse<Ingredient[]>>('/api/ingredients/active');
+    return response.data;
+  }
+
+  /**
+   * Get inactive ingredients (Admin only)
+   */
+  async getInactive(): Promise<ApiResponse<Ingredient[]>> {
+    const response = await apiClient.get<ApiResponse<Ingredient[]>>('/api/ingredients/inactive');
+    return response.data;
+  }
+
+  /**
+   * Soft delete ingredient (Admin only)
+   */
+  async softDelete(id: string): Promise<ApiResponse<Record<string, never>>> {
+    const response = await apiClient.put<ApiResponse<Record<string, never>>>(
+      `/api/ingredients/soft-delete/${id}`
+    );
+    return response.data;
+  }
+
+  /**
+   * Restore soft-deleted ingredient (Admin only)
+   */
+  async restore(id: string): Promise<ApiResponse<Record<string, never>>> {
+    const response = await apiClient.put<ApiResponse<Record<string, never>>>(
+      `/api/ingredients/restore/${id}`
+    );
+    return response.data;
+  }
+
+  /**
    * Delete ingredient (Admin only)
    */
   async delete(id: string): Promise<ApiResponse<Record<string, never>>> {

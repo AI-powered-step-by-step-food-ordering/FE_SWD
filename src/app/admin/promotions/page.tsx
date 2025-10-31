@@ -5,7 +5,10 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import apiClient from '@/services/api.config';
 import type { Promotion, PromotionRequest } from '@/types/api';
 import { toast } from 'react-toastify';
+import { formatVND } from '@/lib/format-number';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+import AdminSearchBar from '@/components/admin/AdminSearchBar';
+import Pagination from '@/components/admin/Pagination';
 
 export default function PromotionsPage() {
   useRequireAdmin();
@@ -13,6 +16,9 @@ export default function PromotionsPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
   const [formData, setFormData] = useState<PromotionRequest>({
     code: '',
     name: '',
@@ -63,19 +69,6 @@ export default function PromotionsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this promotion?')) return;
-    
-    try {
-      await apiClient.delete(`/api/promotions/delete/${id}`);
-      toast.success('Promotion deleted successfully');
-      loadPromotions();
-    } catch (error) {
-      console.error('Failed to delete promotion:', error);
-      toast.error('Failed to delete promotion');
-    }
-  };
-
   const handleEdit = (promotion: Promotion) => {
     setEditingPromotion(promotion);
     setFormData({
@@ -120,6 +113,18 @@ export default function PromotionsPage() {
     return now >= start && now <= end;
   };
 
+  const filteredPromotions = promotions.filter((p) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    const name = p.name?.toLowerCase() || '';
+    const code = p.code?.toLowerCase() || '';
+    const description = p.description?.toLowerCase() || '';
+    return name.includes(q) || code.includes(q) || description.includes(q);
+  });
+
+  const startIndex = (page - 1) * pageSize;
+  const pagedPromotions = filteredPromotions.slice(startIndex, startIndex + pageSize);
+
   return (
     <AdminLayout title="Promotions Management">
       <div className="space-y-6">
@@ -129,6 +134,8 @@ export default function PromotionsPage() {
             <h2 className="text-2xl font-bold text-gray-800">Promotions</h2>
             <p className="text-sm text-gray-600 mt-1">Manage all promotions in the system</p>
           </div>
+          <div className="flex items-center gap-4">
+            <AdminSearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Tìm khuyến mãi..." />
           <button
             onClick={() => {
               resetForm();
@@ -141,6 +148,7 @@ export default function PromotionsPage() {
             </svg>
             Add Promotion
           </button>
+          </div>
         </div>
 
         {/* Promotions Grid */}
@@ -149,12 +157,12 @@ export default function PromotionsPage() {
             <div className="col-span-full text-center py-12 text-gray-500">
               Loading...
             </div>
-          ) : promotions.length === 0 ? (
+          ) : filteredPromotions.length === 0 ? (
             <div className="col-span-full text-center py-12 text-gray-500">
               No promotions found
             </div>
           ) : (
-            promotions.map((promotion) => (
+            pagedPromotions.map((promotion) => (
               <div key={promotion.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
@@ -180,7 +188,7 @@ export default function PromotionsPage() {
                     <span className="font-semibold text-green-600">
                       {promotion.discountType === 'PERCENTAGE'
                         ? `${promotion.discountValue}%`
-                        : `$${promotion.discountValue.toFixed(2)}`}
+                        : formatVND(promotion.discountValue ?? 0)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
@@ -206,17 +214,18 @@ export default function PromotionsPage() {
                   >
                     Edit
                   </button>
-                  <button
-                    onClick={() => handleDelete(promotion.id)}
-                    className="flex-1 px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
-                  >
-                    Delete
-                  </button>
                 </div>
               </div>
             ))
           )}
         </div>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={filteredPromotions.length}
+          onPageChange={(p) => setPage(p)}
+          onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+        />
       </div>
 
       {/* Modal */}

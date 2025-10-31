@@ -4,16 +4,23 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import AdminLayout from "@/components/admin/AdminLayout";
 import dynamic from "next/dynamic";
-import apiClient from '@/services/api.config';
+import apiClient from "@/services/api.config";
+import categoryService from "@/services/category.service";
 import { getFirebaseThumbnail } from "@/lib/firebase-storage";
 import type { Category, CategoryRequest } from "@/types/api";
 import { toast } from "react-toastify";
-import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+import { useRequireAdmin } from "@/hooks/useRequireAdmin";
+import AdminSearchBar from '@/components/admin/AdminSearchBar';
+import Pagination from '@/components/admin/Pagination';
 
 export default function CategoriesPage() {
-  const FirebaseImageUpload = dynamic(() => import("@/components/shared/FirebaseImageUpload"), { ssr: false });
+  const FirebaseImageUpload = dynamic(
+    () => import("@/components/shared/FirebaseImageUpload"),
+    { ssr: false },
+  );
   useRequireAdmin();
   const [categories, setCategories] = useState<Category[]>([]);
+  const [showInactive, setShowInactive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -22,19 +29,27 @@ export default function CategoriesPage() {
     kind: "CARB",
     imageUrl: "",
   });
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     loadCategories();
-  }, []);
+  }, [showInactive]);
 
   const loadCategories = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get<{ data: Category[] }>('/api/categories/getall');
-      setCategories(response.data?.data || []);
+      if (showInactive) {
+        const res = await categoryService.getInactive();
+        setCategories(res?.data || []);
+      } else {
+        const active = await categoryService.getActiveCategories();
+        setCategories(active || []);
+      }
     } catch (error) {
-      console.error('Failed to load categories:', error);
-      toast.error('Failed to load categories');
+      console.error("Error loading categories:", error);
+      toast.error("Failed to load categories");
     } finally {
       setLoading(false);
     }
@@ -44,30 +59,47 @@ export default function CategoriesPage() {
     e.preventDefault();
     try {
       if (editingCategory) {
-        await apiClient.put(`/api/categories/update/${editingCategory.id}`, formData);
-        toast.success('Category updated successfully');
+        await apiClient.put(
+          `/api/categories/update/${editingCategory.id}`,
+          formData,
+        );
+        toast.success("Category updated successfully");
       } else {
-        await apiClient.post('/api/categories/create', formData);
-        toast.success('Category created successfully');
+        await apiClient.post("/api/categories/create", formData);
+        toast.success("Category created successfully");
       }
       setShowModal(false);
       resetForm();
       loadCategories();
     } catch (error) {
-      console.error('Failed to save category:', error);
-      toast.error('Failed to save category');
+      console.error("Failed to save category:", error);
+      toast.error("Failed to save category");
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this category?')) return;
-    try {
-      await apiClient.delete(`/api/categories/delete/${id}`);
-      toast.success('Category deleted successfully');
-      loadCategories();
-    } catch (error) {
-      console.error('Failed to delete category:', error);
-      toast.error('Failed to delete category');
+  const handleSoftDelete = async (id: string) => {
+    if (window.confirm("Are you sure you want to soft delete this category?")) {
+      try {
+        await categoryService.softDelete(id);
+        toast.success("Category soft deleted successfully");
+        loadCategories();
+      } catch (error) {
+        console.error("Error soft deleting category:", error);
+        toast.error("Failed to soft delete category");
+      }
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    if (window.confirm("Are you sure you want to restore this category?")) {
+      try {
+        await categoryService.restore(id);
+        toast.success("Category restored successfully");
+        loadCategories();
+      } catch (error) {
+        console.error("Error restoring category:", error);
+        toast.error("Failed to restore category");
+      }
     }
   };
 
@@ -95,6 +127,19 @@ export default function CategoriesPage() {
     resetForm();
   };
 
+  // Derived search & pagination
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredCategories = categories.filter((c) => {
+    if (!normalizedSearch) return true;
+    return (
+      c.name?.toLowerCase().includes(normalizedSearch) ||
+      c.kind?.toLowerCase().includes(normalizedSearch) ||
+      c.id?.toLowerCase().includes(normalizedSearch)
+    );
+  });
+  const startIndex = (page - 1) * pageSize;
+  const pagedCategories = filteredCategories.slice(startIndex, startIndex + pageSize);
+
   return (
     <AdminLayout title="Categories Management">
       <div className="space-y-6">
@@ -106,28 +151,52 @@ export default function CategoriesPage() {
               Manage all categories in the system
             </p>
           </div>
-          <button
-            onClick={() => {
-              resetForm();
-              setShowModal(true);
-            }}
-            className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white transition-colors hover:bg-green-700"
-          >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <div className="flex items-center gap-4">
+            <AdminSearchBar value={search} onChange={(v)=>{ setSearch(v); setPage(1); }} placeholder="Tìm category..." />
+            <div className="flex items-center gap-2">
+              <span className={`text-sm ${!showInactive ? 'font-medium text-green-600' : 'text-gray-500'}`}>
+                Active
+              </span>
+              <button
+                onClick={() => setShowInactive(!showInactive)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  showInactive ? 'bg-red-600' : 'bg-green-600'
+                }`}
+                aria-label="Toggle Active/Inactive"
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    showInactive ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className={`text-sm ${showInactive ? 'font-medium text-red-600' : 'text-gray-500'}`}>
+                Inactive
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                resetForm();
+                setShowModal(true);
+              }}
+              className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white transition-colors hover:bg-green-700"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-              />
-            </svg>
-            Add Category
-          </button>
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                />
+              </svg>
+              Add Category
+            </button>
+          </div>
         </div>
 
         {/* Categories Table */}
@@ -145,6 +214,9 @@ export default function CategoriesPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                     Kind
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                    Status
+                  </th>
                   <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
                     Actions
                   </th>
@@ -154,7 +226,7 @@ export default function CategoriesPage() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={4}
+                      colSpan={5}
                       className="px-6 py-4 text-center text-gray-500"
                     >
                       Loading...
@@ -163,14 +235,14 @@ export default function CategoriesPage() {
                 ) : categories.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={4}
+                      colSpan={5}
                       className="px-6 py-4 text-center text-gray-500"
                     >
                       No categories found
                     </td>
                   </tr>
                 ) : (
-                  categories.map((category) => (
+                  pagedCategories.map((category) => (
                     <tr key={category.id} className="hover:bg-gray-50">
                       <td className="whitespace-nowrap px-6 py-4">
                         {category.imageUrl ? (
@@ -199,25 +271,58 @@ export default function CategoriesPage() {
                           {category.kind}
                         </span>
                       </td>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                            category.isActive
+                              ? "bg-green-100 text-green-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
+                        >
+                          {category.isActive ? "Active" : "Inactive"}
+                        </span>
+                      </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                        <button
-                          onClick={() => handleEdit(category)}
-                          className="mr-4 text-blue-600 hover:text-blue-900"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(category.id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          Delete
-                        </button>
+                        {!category.isActive ? (
+                          <>
+                            <button
+                              onClick={() => handleRestore(category.id)}
+                              className="mr-4 text-green-600 hover:text-green-900"
+                            >
+                              Restore
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleEdit(category)}
+                              className="mr-4 text-blue-600 hover:text-blue-900"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleSoftDelete(category.id)}
+                              className="text-orange-600 hover:text-orange-900"
+                            >
+                              Soft Delete
+                            </button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
+          </div>
+          <div className="px-6 pb-4">
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              total={filteredCategories.length}
+              onPageChange={(p)=>setPage(p)}
+              onPageSizeChange={(s)=>{ setPageSize(s); setPage(1); }}
+            />
           </div>
         </div>
       </div>

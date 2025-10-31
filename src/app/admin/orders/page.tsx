@@ -3,15 +3,32 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import apiClient from '@/services/api.config';
-import type { Order } from "@/types/api";
+import orderService from '@/services/order.service';
+import bowlService from '@/services/bowl.service';
+import paymentService from '@/services/payment.service';
+import type { Order, Bowl, BowlItem, PaymentTransaction, Store, User } from "@/types/api";
 import { toast } from "react-toastify";
+import { formatVND } from '@/lib/format-number';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+import AdminSearchBar from '@/components/admin/AdminSearchBar';
+import Pagination from '@/components/admin/Pagination';
 
 export default function OrdersPage() {
   useRequireAdmin();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("ALL");
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  
+  // Modal state for order details
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orderBowls, setOrderBowls] = useState<Bowl[]>([]);
+  const [bowlItems, setBowlItems] = useState<BowlItem[]>([]);
+  const [paymentTransactions, setPaymentTransactions] = useState<PaymentTransaction[]>([]);
+  const [orderDetailsLoading, setOrderDetailsLoading] = useState(false);
+  const [showOrderModal, setShowOrderModal] = useState(false);
 
   useEffect(() => {
     loadOrders();
@@ -27,6 +44,36 @@ export default function OrdersPage() {
       toast.error('Failed to load orders');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadOrderDetails = async (order: Order) => {
+    try {
+      setOrderDetailsLoading(true);
+      setSelectedOrder(order);
+      setShowOrderModal(true);
+
+      // Load bowls for this order
+      const bowlsResponse = await bowlService.getAll();
+      const orderBowls = bowlsResponse.data.filter(bowl => bowl.orderId === order.id);
+      setOrderBowls(orderBowls);
+
+      // Load bowl items for these bowls
+      const bowlItemsResponse = await bowlService.getAllItems();
+      const orderBowlItems = bowlItemsResponse.data.filter(item => 
+        orderBowls.some(bowl => bowl.id === item.bowlId)
+      );
+      setBowlItems(orderBowlItems);
+
+      // Load payment transactions for this order
+      const paymentsResponse = await paymentService.getByOrderId(order.id);
+      setPaymentTransactions(paymentsResponse.data);
+
+    } catch (error) {
+      console.error('Error loading order details:', error);
+      toast.error('Failed to load order details');
+    } finally {
+      setOrderDetailsLoading(false);
     }
   };
 
@@ -96,22 +143,23 @@ export default function OrdersPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this order?')) return;
-    try {
-      await apiClient.delete(`/api/orders/delete/${id}`);
-      toast.success('Order deleted successfully');
-      loadOrders();
-    } catch (error) {
-      console.error('Failed to delete order:', error);
-      toast.error('Failed to delete order');
-    }
-  };
-
   const filteredOrders =
     filter === "ALL"
       ? orders
       : orders.filter((order) => order.status === filter);
+
+  const searchedOrders = filteredOrders.filter((order) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    const id = order.id?.toLowerCase() || '';
+    const userId = order.userId?.toLowerCase() || '';
+    const storeId = order.storeId?.toLowerCase() || '';
+    const status = order.status?.toLowerCase() || '';
+    return id.includes(q) || userId.includes(q) || storeId.includes(q) || status.includes(q);
+  });
+
+  const startIndex = (page - 1) * pageSize;
+  const pagedOrders = searchedOrders.slice(startIndex, startIndex + pageSize);
 
   const getStatusColor = (status: string) => {
     switch (status.toUpperCase()) {
@@ -144,6 +192,7 @@ export default function OrdersPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <AdminSearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Tìm đơn hàng..." />
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
@@ -224,7 +273,7 @@ export default function OrdersPage() {
                       Loading...
                     </td>
                   </tr>
-                ) : filteredOrders.length === 0 ? (
+                ) : searchedOrders.length === 0 ? (
                   <tr>
                     <td
                       colSpan={8}
@@ -234,7 +283,7 @@ export default function OrdersPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredOrders.map((order) => (
+                  pagedOrders.map((order) => (
                     <tr key={order.id} className="hover:bg-gray-50">
                       <td className="whitespace-nowrap px-6 py-4">
                         <div className="font-mono text-sm text-gray-900">
@@ -260,21 +309,28 @@ export default function OrdersPage() {
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right">
                         <div className="text-sm text-gray-900">
-                          ${order.subtotalAmount?.toFixed(2) || "0.00"}
+                          {formatVND(order.subtotalAmount ?? 0)}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right">
                         <div className="text-sm text-green-600">
-                          -${order.promotionTotal?.toFixed(2) || "0.00"}
+                          -{formatVND(order.promotionTotal ?? 0)}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right">
                         <div className="text-sm font-semibold text-gray-900">
-                          ${order.totalAmount?.toFixed(2) || "0.00"}
+                          {formatVND(order.totalAmount ?? 0)}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
                         <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => loadOrderDetails(order)}
+                            className="text-indigo-600 hover:text-indigo-900"
+                            title="View Order Details"
+                          >
+                            👁
+                          </button>
                           {order.status === "PENDING" && (
                             <button
                               onClick={() => handleConfirm(order.id)}
@@ -305,13 +361,6 @@ export default function OrdersPage() {
                                 ✕
                               </button>
                             )}
-                          <button
-                            onClick={() => handleDelete(order.id)}
-                            className="text-gray-600 hover:text-gray-900"
-                            title="Delete Order"
-                          >
-                            🗑
-                          </button>
                         </div>
                       </td>
                     </tr>
@@ -321,7 +370,182 @@ export default function OrdersPage() {
             </table>
           </div>
         </div>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={searchedOrders.length}
+          onPageChange={(p) => setPage(p)}
+          onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+        />
       </div>
+
+      {/* Order Details Modal */}
+      {showOrderModal && selectedOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Order Details - {selectedOrder.id}
+              </h2>
+              <button
+                onClick={() => setShowOrderModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            {orderDetailsLoading ? (
+              <div className="flex justify-center items-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                <span className="ml-2">Loading order details...</span>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Basic Order Information */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold mb-3">Order Information</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                      <span className="text-sm text-gray-600">Order ID:</span>
+                      <p className="font-mono text-sm">{selectedOrder.id}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600">User ID:</span>
+                      <p className="font-mono text-sm">{selectedOrder.userId}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600">Store ID:</span>
+                      <p className="font-mono text-sm">{selectedOrder.storeId}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600">Status:</span>
+                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${getStatusColor(selectedOrder.status)}`}>
+                        {selectedOrder.status}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600">Pickup Time:</span>
+                      <p className="text-sm">{selectedOrder.pickupAt ? new Date(selectedOrder.pickupAt).toLocaleString() : 'Not set'}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600">Created:</span>
+                      <p className="text-sm">{new Date(selectedOrder.createdAt).toLocaleString()}</p>
+                    </div>
+                  </div>
+                  {selectedOrder.note && (
+                    <div className="mt-4">
+                      <span className="text-sm text-gray-600">Note:</span>
+                      <p className="text-sm bg-white p-2 rounded border">{selectedOrder.note}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Order Totals */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold mb-3">Order Totals</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span>Subtotal:</span>
+                      <span>{formatVND(selectedOrder.subtotalAmount ?? 0)}</span>
+                    </div>
+                    <div className="flex justify-between text-green-600">
+                      <span>Discount:</span>
+                      <span>-{formatVND(selectedOrder.promotionTotal ?? 0)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold text-lg border-t pt-2">
+                      <span>Total:</span>
+                      <span>{formatVND(selectedOrder.totalAmount ?? 0)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bowls */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold mb-3">Bowls ({orderBowls.length})</h3>
+                  {orderBowls.length === 0 ? (
+                    <p className="text-gray-500">No bowls found for this order.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {orderBowls.map((bowl) => (
+                        <div key={bowl.id} className="bg-white p-4 rounded border">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <h4 className="font-semibold">{bowl.name}</h4>
+                              <p className="text-sm text-gray-600 font-mono">Bowl ID: {bowl.id}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold">{formatVND(bowl.totalPrice ?? 0)}</p>
+                              <p className="text-sm text-gray-600">Qty: {bowl.quantity || 1}</p>
+                            </div>
+                          </div>
+                          
+                          {/* Bowl Items */}
+                          <div className="mt-3">
+                            <h5 className="text-sm font-semibold text-gray-700 mb-2">Ingredients:</h5>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {bowlItems
+                                .filter(item => item.bowlId === bowl.id)
+                                .map((item) => (
+                                  <div key={item.id} className="flex justify-between text-sm bg-gray-50 p-2 rounded">
+                                    <span>{item.ingredientId}</span>
+                                    <span>Qty: {item.quantity}</span>
+                                  </div>
+                                ))}
+                            </div>
+                            {bowlItems.filter(item => item.bowlId === bowl.id).length === 0 && (
+                              <p className="text-sm text-gray-500">No ingredients found.</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Payment Transactions */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold mb-3">Payment Transactions ({paymentTransactions.length})</h3>
+                  {paymentTransactions.length === 0 ? (
+                    <p className="text-gray-500">No payment transactions found for this order.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {paymentTransactions.map((payment) => (
+                        <div key={payment.id} className="bg-white p-4 rounded border">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                              <span className="text-sm text-gray-600">Transaction ID:</span>
+                              <p className="font-mono text-sm">{payment.id}</p>
+                            </div>
+                            <div>
+                              <span className="text-sm text-gray-600">Amount:</span>
+                              <p className="font-semibold">{formatVND(payment.amount ?? 0)}</p>
+                            </div>
+                            <div>
+                              <span className="text-sm text-gray-600">Status:</span>
+                              <p className="text-sm">{payment.status || 'Unknown'}</p>
+                            </div>
+                            <div>
+                              <span className="text-sm text-gray-600">Method:</span>
+                              <p className="text-sm">{payment.paymentMethod || 'Unknown'}</p>
+                            </div>
+                          </div>
+                          {payment.transactionId && (
+                            <div className="mt-2">
+                              <span className="text-sm text-gray-600">External Transaction ID:</span>
+                              <p className="font-mono text-sm">{payment.transactionId}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }
