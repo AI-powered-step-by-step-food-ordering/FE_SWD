@@ -4,7 +4,7 @@ import { useAuthStore } from '@/store/auth.store';
 
 export function useRequireAdmin() {
   const router = useRouter();
-  const { user, isAuthenticated, hydrateFromCookies } = useAuthStore();
+  const { user, isAuthenticated, hydrateFromCookies, hasHydrated } = useAuthStore();
 
   // Đảm bảo luôn load state từ cookie
   useEffect(() => {
@@ -12,9 +12,10 @@ export function useRequireAdmin() {
   }, [hydrateFromCookies]);
 
   useEffect(() => {
-    // Nếu chưa xác thực hoặc không phải admin → redirect
+    // Chỉ quyết định redirect sau khi đã hydrate xong từ cookies
+    if (!hasHydrated) return;
     if (!isAuthenticated || user?.role?.toUpperCase() !== 'ADMIN') {
       router.replace('/');
     }
-  }, [isAuthenticated, user, router]);
+  }, [hasHydrated, isAuthenticated, user, router]);
 }
