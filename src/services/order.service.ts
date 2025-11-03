@@ -1,13 +1,56 @@
 import apiClient from './api.config';
-import { ApiResponse, Order, OrderRequest, UpdateOrderStatusRequest } from '@/types/api.types';
+import { ApiResponse, Order, OrderRequest, UpdateOrderStatusRequest, PageRequest, PaginatedApiResponse } from '@/types/api.types';
 
 class OrderService {
   /**
-   * Get all orders
+   * Get all orders with pagination, search, and sort
    */
-  async getAll(): Promise<ApiResponse<Order[]>> {
-    const response = await apiClient.get<ApiResponse<Order[]>>('/api/orders/getall');
+  async getAll(params?: PageRequest): Promise<PaginatedApiResponse<Order[]>> {
+    // Align with backend: /api/orders/getall?page=&size=&sortBy=&sortDir=
+    let url = '/api/orders/getall';
+    const queryParams = new URLSearchParams();
+
+    if (params) {
+      if (params.page !== undefined) queryParams.append('page', params.page.toString());
+      if (params.size !== undefined) queryParams.append('size', params.size.toString());
+
+      // Map sort to sortBy/sortDir (accept "field,direction" or explicit fields)
+      const anyParams = params as any;
+      let sortBy: string | undefined;
+      let sortDir: string | undefined;
+      if (params.sort) {
+        const [field, direction] = params.sort.split(',');
+        sortBy = field;
+        sortDir = direction || 'desc';
+      } else if (anyParams.sortField || anyParams.sortDirection) {
+        sortBy = anyParams.sortField;
+        sortDir = anyParams.sortDirection;
+      }
+      if (sortBy) queryParams.append('sortBy', sortBy);
+      if (sortDir) queryParams.append('sortDir', sortDir);
+    }
+
+    if (queryParams.toString()) {
+      url += `?${queryParams.toString()}`;
+    }
+
+    const response = await apiClient.get<PaginatedApiResponse<Order[]>>(url);
     return response.data;
+  }
+
+  /**
+   * Get all orders (legacy method for backward compatibility)
+   */
+  async getAllLegacy(): Promise<ApiResponse<Order[]>> {
+    // Fetch a large page and flatten to a simple array for client-side filtering
+    const params = new URLSearchParams({ page: '0', size: '1000' });
+    const resp = await apiClient.get<PaginatedApiResponse<Order[]>>(`/api/orders/getall?${params.toString()}`);
+    const page = resp.data?.data;
+    return {
+      success: resp.data?.success ?? true,
+      message: resp.data?.message ?? 'OK',
+      data: Array.isArray(page?.content) ? page.content : [],
+    } as ApiResponse<Order[]>;
   }
 
   /**

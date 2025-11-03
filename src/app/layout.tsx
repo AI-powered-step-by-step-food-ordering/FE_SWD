@@ -35,6 +35,10 @@ export default function RootLayout({ children }: PropsWithChildren) {
         <link rel="icon" href="/icon.svg" type="image/svg+xml" />
         <link rel="alternate icon" href="/favicon.ico" />
         <link rel="mask-icon" href="/icon.svg" color="#22C55E" />
+        <link
+          href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
+          rel="stylesheet"
+        />
       </head>
       <body className="bg-gray-50 dark:bg-gray-900" suppressHydrationWarning>
           <NextTopLoader color="#10B981" showSpinner={false} />

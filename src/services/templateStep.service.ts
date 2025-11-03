@@ -14,10 +14,20 @@ class TemplateStepService {
    * Get template steps by template ID
    */
   async getByTemplateId(templateId: string): Promise<ApiResponse<TemplateStep[]>> {
-    const response = await apiClient.get<ApiResponse<TemplateStep[]>>(
-      `/api/template_steps/getall?templateId=${templateId}`
+    // Use bowl template view-detail endpoint that includes steps
+    const response = await apiClient.get<any>(
+      `/api/bowl_templates/getbyid/${templateId}`
     );
-    return response.data;
+    const res = response.data;
+    const steps: TemplateStep[] = Array.isArray(res?.data?.steps) ? res.data.steps : [];
+    return {
+      success: !!res?.success,
+      code: res?.code ?? 200,
+      message: res?.message ?? 'OK',
+      data: steps,
+      errorCode: res?.errorCode,
+      timestamp: res?.timestamp ?? new Date().toISOString(),
+    };
   }
 
   /**

@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import apiClient from '@/services/api.config';
-import type { Promotion, PromotionRequest } from '@/types/api';
+import { promotionService } from '@/services/promotion.service';
+import type { Promotion } from '@/types/api';
+import type { PromotionRequest as BackendPromotionRequest } from '@/types/api.types';
 import { toast } from 'react-toastify';
 import { formatVND } from '@/lib/format-number';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
@@ -35,11 +37,29 @@ export default function PromotionsPage() {
     loadPromotions();
   }, []);
 
+  // Convert HTML date (YYYY-MM-DD) to ISO OffsetDateTime string (UTC)
+  const toOffsetISOStart = (dateStr: string | undefined) => {
+    if (!dateStr) return undefined;
+    try {
+      return new Date(`${dateStr}T00:00:00`).toISOString();
+    } catch {
+      return undefined;
+    }
+  };
+  const toOffsetISOEnd = (dateStr: string | undefined) => {
+    if (!dateStr) return undefined;
+    try {
+      return new Date(`${dateStr}T23:59:59`).toISOString();
+    } catch {
+      return undefined;
+    }
+  };
+
   const loadPromotions = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get<{ data: Promotion[] }>('/api/promotions/getall');
-      setPromotions(response.data?.data || []);
+      const response = await promotionService.getAll();
+      setPromotions((response?.data as unknown as Promotion[]) || []);
     } catch (error) {
       console.error('Failed to load promotions:', error);
       toast.error('Failed to load promotions');
@@ -52,11 +72,26 @@ export default function PromotionsPage() {
     e.preventDefault();
     
     try {
+      // Map frontend form fields to backend PromotionRequest shape
+      const payload: BackendPromotionRequest = {
+        code: formData.code,
+        name: formData.name,
+        type: formData.discountType === 'PERCENTAGE' ? 'PERCENTAGE' : 'AMOUNT',
+        percentOff: formData.discountType === 'PERCENTAGE' ? Number(formData.discountValue || 0) : 0,
+        amountOff: formData.discountType === 'PERCENTAGE' ? 0 : Number(formData.discountValue || 0),
+        minOrderValue: 0, // default when not provided
+        startsAt: toOffsetISOStart(formData.startDate),
+        endsAt: toOffsetISOEnd(formData.endDate),
+        maxRedemptions: formData.usageLimit,
+        perOrderLimit: undefined,
+        isActive: formData.isActive,
+      };
+
       if (editingPromotion) {
-        await apiClient.put(`/api/promotions/update/${editingPromotion.id}`, formData);
+        await promotionService.update(editingPromotion.id, payload);
         toast.success('Promotion updated successfully');
       } else {
-        await apiClient.post('/api/promotions/create', formData);
+        await promotionService.create(payload);
         toast.success('Promotion created successfully');
       }
       
@@ -143,9 +178,7 @@ export default function PromotionsPage() {
             }}
             className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
+            <i className="bx bx-plus text-[20px]" aria-hidden="true"></i>
             Add Promotion
           </button>
           </div>
@@ -306,8 +339,14 @@ export default function PromotionsPage() {
                           step="0.01"
                           min="0"
                           required
-                          value={formData.discountValue}
-                          onChange={(e) => setFormData({ ...formData, discountValue: parseFloat(e.target.value) })}
+                          value={Number.isFinite(formData.discountValue as unknown as number) ? (formData.discountValue as unknown as number) : ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormData({
+                              ...formData,
+                              discountValue: val === '' ? (Number.NaN as unknown as number) : parseFloat(val),
+                            });
+                          }}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                         />
                       </div>

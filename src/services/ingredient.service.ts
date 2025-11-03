@@ -1,12 +1,46 @@
 import apiClient from './api.config';
-import { ApiResponse, Ingredient, IngredientRequest } from '@/types/api.types';
+import { ApiResponse, Ingredient, IngredientRequest, PageRequest, PaginatedApiResponse } from '@/types/api.types';
 
 class IngredientService {
   /**
-   * Get all ingredients
+   * Get all ingredients with pagination, search, and sort
    */
-  async getAll(): Promise<ApiResponse<Ingredient[]>> {
-    const response = await apiClient.get<ApiResponse<Ingredient[]>>('/api/ingredients/getall');
+  async getAll(params?: PageRequest): Promise<PaginatedApiResponse<Ingredient[]>> {
+    // Align with backend: /api/ingredients/getall?page=&size=&sortBy=&sortDir=
+    let url = '/api/ingredients/getall';
+    const queryParams = new URLSearchParams();
+
+    if (params) {
+      if (params.page !== undefined) queryParams.append('page', params.page.toString());
+      if (params.size !== undefined) queryParams.append('size', params.size.toString());
+      const anyParams = params as any;
+      let sortBy: string | undefined;
+      let sortDir: string | undefined;
+      if (params.sort) {
+        const [field, direction] = params.sort.split(',');
+        sortBy = field;
+        sortDir = direction || 'desc';
+      } else if (anyParams.sortField || anyParams.sortDirection) {
+        sortBy = anyParams.sortField;
+        sortDir = anyParams.sortDirection;
+      }
+      if (sortBy) queryParams.append('sortBy', sortBy);
+      if (sortDir) queryParams.append('sortDir', sortDir);
+    }
+
+    if (queryParams.toString()) {
+      url += `?${queryParams.toString()}`;
+    }
+
+    const response = await apiClient.get<PaginatedApiResponse<Ingredient[]>>(url);
+    return response.data;
+  }
+
+  /**
+   * Get all ingredients (legacy method for backward compatibility)
+   */
+  async getAllLegacy(): Promise<ApiResponse<Ingredient[]>> {
+    const response = await apiClient.get<ApiResponse<Ingredient[]>>('/api/ingredients');
     return response.data;
   }
 

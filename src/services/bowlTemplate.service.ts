@@ -12,8 +12,23 @@ class BowlTemplateService {
    * Get all bowl templates
    */
   async getAll(): Promise<ApiResponse<BowlTemplate[]>> {
-    const response = await apiClient.get<ApiResponse<BowlTemplate[]>>('/api/bowl_templates/getall');
-    return response.data;
+    // Normalize backend response: support both array and paginated shapes
+    const response = await apiClient.get<any>('/api/bowl_templates/getall');
+    const raw: any = response.data;
+
+    // If data is already an array, return as-is
+    if (Array.isArray(raw?.data)) {
+      return raw as ApiResponse<BowlTemplate[]>;
+    }
+
+    // If backend returns paginated object, flatten content to array
+    const content = raw?.data?.content ?? raw?.content;
+    if (Array.isArray(content)) {
+      return { ...raw, data: content } as ApiResponse<BowlTemplate[]>;
+    }
+
+    // Fallback: return raw response
+    return raw as ApiResponse<BowlTemplate[]>;
   }
 
   /**
@@ -129,12 +144,22 @@ class BowlTemplateService {
    * Get steps for a specific template
    */
   async getStepsByTemplate(templateId: string): Promise<TemplateStep[]> {
-    const response = await this.getAllSteps();
-    if (response.success && response.data) {
-      return response.data
-        .filter((step) => step.templateId === templateId)
-        .sort((a, b) => a.displayOrder - b.displayOrder);
-    }
+    // Use bowl template detail endpoint that embeds steps
+    try {
+      const response = await apiClient.get<any>(`/api/bowl_templates/getbyid/${templateId}`);
+      const res = response.data;
+      const steps: TemplateStep[] = Array.isArray(res?.data?.steps) ? res.data.steps : [];
+      return [...steps].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+    } catch {}
+    // Fallback to getAllSteps and filter client-side if needed
+    try {
+      const all = await this.getAllSteps();
+      if (all.success && Array.isArray(all.data)) {
+        return all.data
+          .filter((step) => step.templateId === templateId)
+          .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+      }
+    } catch {}
     return [];
   }
 }

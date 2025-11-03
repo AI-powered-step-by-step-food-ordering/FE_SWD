@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import apiClient from '@/services/api.config';
 import orderService from '@/services/order.service';
-import bowlService from '@/services/bowl.service';
-import paymentService from '@/services/payment.service';
-import type { Order, Bowl, BowlItem, PaymentTransaction, Store, User } from "@/types/api";
+// Removed bowlService/paymentService imports; order details now fetched via orderService.getById
+import type { Order, Bowl, BowlItem, Store, User } from "@/types/api.types";
 import { toast } from "react-toastify";
+import ImageWithFallback from '@/components/shared/ImageWithFallback';
 import { formatVND } from '@/lib/format-number';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import AdminSearchBar from '@/components/admin/AdminSearchBar';
@@ -21,25 +21,89 @@ export default function OrdersPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [sortField, setSortField] = useState<string>('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [totalElements, setTotalElements] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [useLegacy, setUseLegacy] = useState(false);
   
   // Modal state for order details
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderBowls, setOrderBowls] = useState<Bowl[]>([]);
   const [bowlItems, setBowlItems] = useState<BowlItem[]>([]);
-  const [paymentTransactions, setPaymentTransactions] = useState<PaymentTransaction[]>([]);
   const [orderDetailsLoading, setOrderDetailsLoading] = useState(false);
   const [showOrderModal, setShowOrderModal] = useState(false);
 
-  useEffect(() => {
-    loadOrders();
-  }, []);
-
+  // Load orders with backend pagination
   const loadOrders = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get<{ data: Order[] }>('/api/orders/getall');
-      setOrders(response.data?.data || []);
-    } catch (error) {
+      const q = search.trim().toLowerCase();
+
+      // If legacy fallback is enabled, use legacy endpoint and paginate client-side
+      if (useLegacy) {
+        const legacy = await orderService.getAllLegacy();
+        if (legacy.success && legacy.data) {
+          let list = legacy.data;
+          // Apply status filter
+          if (filter !== 'ALL') {
+            list = list.filter((o) => o.status === filter);
+          }
+          // Basic search by id or status
+          if (q) {
+            list = list.filter((o) => (
+              (o.id?.toLowerCase().includes(q)) ||
+              (o.status?.toLowerCase().includes(q))
+            ));
+          }
+          const total = list.length;
+          const startIndex = Math.max(0, (page - 1) * Math.max(1, pageSize));
+          const paged = list.slice(startIndex, startIndex + pageSize);
+          setOrders(paged);
+          setTotalElements(total);
+          setTotalPages(Math.max(1, Math.ceil(total / Math.max(1, pageSize))));
+        } else {
+          setOrders([]);
+          setTotalElements(0);
+          setTotalPages(0);
+        }
+        return; // done
+      }
+
+      // If searching, switch to legacy client-side filtering (fetch large page)
+      if (q && !useLegacy) {
+        setUseLegacy(true);
+        setLoading(false);
+        return;
+      }
+
+      // Default path: use paginated backend
+      const sortParam = sortField ? `${sortField},${sortDirection}` : 'createdAt,desc';
+
+      const response = await orderService.getAll({
+        page: page - 1, // Backend uses 0-indexed pages
+        size: pageSize,
+        sort: sortParam,
+      });
+
+      if (response.success && response.data) {
+        let filteredOrders = response.data.content;
+        if (filter !== 'ALL') {
+          filteredOrders = filteredOrders.filter((order) => order.status === filter);
+        }
+        setOrders(filteredOrders);
+        setTotalElements(response.data.totalElements);
+        setTotalPages(response.data.totalPages);
+      } else {
+        // If unexpected shape, fallback to legacy once
+        setUseLegacy(true);
+      }
+    } catch (error: any) {
+      // If backend errors (e.g., 500), enable legacy fallback
+      const status = error?.response?.status;
+      if (status && status >= 500) {
+        setUseLegacy(true);
+      }
       console.error('Failed to load orders:', error);
       toast.error('Failed to load orders');
     } finally {
@@ -47,27 +111,58 @@ export default function OrdersPage() {
     }
   };
 
+  useEffect(() => {
+    loadOrders();
+  }, [page, pageSize, search, sortField, sortDirection, filter]);
+
+  // Handle search
+  const handleSearch = (searchTerm: string) => {
+    setSearch(searchTerm);
+    setPage(1); // Reset to first page when searching
+  };
+
+  // Handle sort
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+    setPage(1); // Reset to first page when sorting
+  };
+
+  // Get sort icon
+  const getSortIcon = (field: string) => {
+    if (sortField !== field) return <i className="bx bx-sort text-[16px]"></i>;
+    return sortDirection === 'asc' ? (
+      <i className="bx bx-sort-up text-[16px]"></i>
+    ) : (
+      <i className="bx bx-sort-down text-[16px]"></i>
+    );
+  };
+
   const loadOrderDetails = async (order: Order) => {
     try {
       setOrderDetailsLoading(true);
-      setSelectedOrder(order);
       setShowOrderModal(true);
-
-      // Load bowls for this order
-      const bowlsResponse = await bowlService.getAll();
-      const orderBowls = bowlsResponse.data.filter(bowl => bowl.orderId === order.id);
-      setOrderBowls(orderBowls);
-
-      // Load bowl items for these bowls
-      const bowlItemsResponse = await bowlService.getAllItems();
-      const orderBowlItems = bowlItemsResponse.data.filter(item => 
-        orderBowls.some(bowl => bowl.id === item.bowlId)
-      );
-      setBowlItems(orderBowlItems);
-
-      // Load payment transactions for this order
-      const paymentsResponse = await paymentService.getByOrderId(order.id);
-      setPaymentTransactions(paymentsResponse.data);
+      // Always fetch the latest order details from backend
+      const resp = await orderService.getById(order.id);
+      if (resp.success && resp.data) {
+        const freshOrder = resp.data;
+        setSelectedOrder(freshOrder);
+        const bowls = freshOrder.bowls || [];
+        setOrderBowls(bowls);
+        const embeddedItems = bowls.flatMap(b => b.items || []);
+        setBowlItems(embeddedItems);
+      } else {
+        // Fallback to current order payload if API fails
+        setSelectedOrder(order);
+        const bowls = order.bowls || [];
+        setOrderBowls(bowls);
+        const embeddedItems = bowls.flatMap(b => b.items || []);
+        setBowlItems(embeddedItems);
+      }
 
     } catch (error) {
       console.error('Error loading order details:', error);
@@ -82,14 +177,8 @@ export default function OrdersPage() {
     try {
       const response = await apiClient.post<{ data: Order, message: string, success: boolean }>(`/api/orders/confirm/${id}`);
       if (response.data?.success && response.data?.data) {
-        setOrders((prev) =>
-          prev.map((order) =>
-            order.id === id
-              ? { ...order, status: response.data.data.status }
-              : order,
-          ),
-        );
         toast.success('Order confirmed successfully');
+        loadOrders(); // Reload data to maintain pagination
       } else {
         toast.error(response.data?.message || 'Failed to confirm order');
       }
@@ -104,14 +193,8 @@ export default function OrdersPage() {
     try {
       const response = await apiClient.post<{ data: Order, message: string, success: boolean }>(`/api/orders/complete/${id}`);
       if (response.data?.success && response.data?.data) {
-        setOrders((prev) =>
-          prev.map((order) =>
-            order.id === id
-              ? { ...order, status: response.data.data.status }
-              : order,
-          ),
-        );
         toast.success('Order completed successfully');
+        loadOrders(); // Reload data to maintain pagination
       } else {
         toast.error(response.data?.message || 'Failed to complete order');
       }
@@ -126,14 +209,8 @@ export default function OrdersPage() {
     try {
       const response = await apiClient.post<{ data: Order, message: string, success: boolean }>(`/api/orders/cancel/${id}${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`);
       if (response.data?.success && response.data?.data) {
-        setOrders((prev) =>
-          prev.map((order) =>
-            order.id === id
-              ? { ...order, status: response.data.data.status }
-              : order,
-          ),
-        );
         toast.success('Order cancelled successfully');
+        loadOrders(); // Reload data to maintain pagination
       } else {
         toast.error(response.data?.message || 'Failed to cancel order');
       }
@@ -142,24 +219,6 @@ export default function OrdersPage() {
       toast.error('Failed to cancel order');
     }
   };
-
-  const filteredOrders =
-    filter === "ALL"
-      ? orders
-      : orders.filter((order) => order.status === filter);
-
-  const searchedOrders = filteredOrders.filter((order) => {
-    const q = search.trim().toLowerCase();
-    if (!q) return true;
-    const id = order.id?.toLowerCase() || '';
-    const userId = order.userId?.toLowerCase() || '';
-    const storeId = order.storeId?.toLowerCase() || '';
-    const status = order.status?.toLowerCase() || '';
-    return id.includes(q) || userId.includes(q) || storeId.includes(q) || status.includes(q);
-  });
-
-  const startIndex = (page - 1) * pageSize;
-  const pagedOrders = searchedOrders.slice(startIndex, startIndex + pageSize);
 
   const getStatusColor = (status: string) => {
     switch (status.toUpperCase()) {
@@ -192,7 +251,7 @@ export default function OrdersPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <AdminSearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Tìm đơn hàng..." />
+            <AdminSearchBar value={search} onChange={handleSearch} placeholder="Tìm đơn hàng..." />
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
@@ -237,26 +296,62 @@ export default function OrdersPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Order ID
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('id')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Order ID
+                      {getSortIcon('id')}
+                    </div>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    User ID
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('userId')}
+                  >
+                    <div className="flex items-center gap-1">
+                      User
+                      {getSortIcon('userId')}
+                    </div>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Store ID
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('storeId')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Store ID
+                      {getSortIcon('storeId')}
+                    </div>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Status
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('status')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Status
+                      {getSortIcon('status')}
+                    </div>
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Subtotal
+                  <th 
+                    className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('subtotalAmount')}
+                  >
+                    <div className="flex items-center justify-end gap-1">
+                      Subtotal
+                      {getSortIcon('subtotalAmount')}
+                    </div>
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
                     Discount
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Total
+                  <th 
+                    className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort('totalAmount')}
+                  >
+                    <div className="flex items-center justify-end gap-1">
+                      Total
+                      {getSortIcon('totalAmount')}
+                    </div>
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
                     Actions
@@ -273,7 +368,7 @@ export default function OrdersPage() {
                       Loading...
                     </td>
                   </tr>
-                ) : searchedOrders.length === 0 ? (
+                ) : orders.length === 0 ? (
                   <tr>
                     <td
                       colSpan={8}
@@ -283,7 +378,7 @@ export default function OrdersPage() {
                     </td>
                   </tr>
                 ) : (
-                  pagedOrders.map((order) => (
+                  orders.map((order) => (
                     <tr key={order.id} className="hover:bg-gray-50">
                       <td className="whitespace-nowrap px-6 py-4">
                         <div className="font-mono text-sm text-gray-900">
@@ -291,8 +386,8 @@ export default function OrdersPage() {
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
-                        <div className="font-mono text-sm text-gray-600">
-                          {order.userId?.slice(0, 8) || "N/A"}...
+                        <div className="text-sm text-gray-900">
+                          {order.userFullName || `${order.userId?.slice(0, 8) || "N/A"}...`}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
@@ -329,7 +424,7 @@ export default function OrdersPage() {
                             className="text-indigo-600 hover:text-indigo-900"
                             title="View Order Details"
                           >
-                            👁
+                            <i className="bx bx-show text-[18px]"></i>
                           </button>
                           {order.status === "PENDING" && (
                             <button
@@ -337,7 +432,7 @@ export default function OrdersPage() {
                               className="text-blue-600 hover:text-blue-900"
                               title="Confirm Order"
                             >
-                              ✓
+                              <i className="bx bx-check text-[18px]"></i>
                             </button>
                           )}
                           {(order.status === "CONFIRMED" ||
@@ -348,7 +443,7 @@ export default function OrdersPage() {
                               className="text-green-600 hover:text-green-900"
                               title="Complete Order"
                             >
-                              ✓✓
+                              <i className="bx bx-check-double text-[18px]"></i>
                             </button>
                           )}
                           {order.status !== "COMPLETED" &&
@@ -358,7 +453,7 @@ export default function OrdersPage() {
                                 className="text-red-600 hover:text-red-900"
                                 title="Cancel Order"
                               >
-                                ✕
+                                <i className="bx bx-x text-[18px]"></i>
                               </button>
                             )}
                         </div>
@@ -373,7 +468,7 @@ export default function OrdersPage() {
         <Pagination
           page={page}
           pageSize={pageSize}
-          total={searchedOrders.length}
+          total={totalElements}
           onPageChange={(p) => setPage(p)}
           onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
         />
@@ -390,8 +485,9 @@ export default function OrdersPage() {
               <button
                 onClick={() => setShowOrderModal(false)}
                 className="text-gray-500 hover:text-gray-700 text-2xl"
+                aria-label="Close"
               >
-                ×
+                <i className="bx bx-x"></i>
               </button>
             </div>
 
@@ -411,8 +507,8 @@ export default function OrdersPage() {
                       <p className="font-mono text-sm">{selectedOrder.id}</p>
                     </div>
                     <div>
-                      <span className="text-sm text-gray-600">User ID:</span>
-                      <p className="font-mono text-sm">{selectedOrder.userId}</p>
+                      <span className="text-sm text-gray-600">User:</span>
+                      <p className="text-sm">{selectedOrder.userFullName || selectedOrder.userId}</p>
                     </div>
                     <div>
                       <span className="text-sm text-gray-600">Store ID:</span>
@@ -473,9 +569,29 @@ export default function OrdersPage() {
                             <div>
                               <h4 className="font-semibold">{bowl.name}</h4>
                               <p className="text-sm text-gray-600 font-mono">Bowl ID: {bowl.id}</p>
+                              {bowl.template && (
+                                <div className="mt-2 flex items-center gap-3">
+                                  <div className="w-16 h-16 relative">
+                                    <ImageWithFallback
+                                      src={bowl.template.imageUrl || '/icon.svg'}
+                                      alt={bowl.template.name || 'Bowl Template'}
+                                      width={64}
+                                      height={64}
+                                      className="rounded object-cover"
+                                      unoptimized
+                                    />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-gray-800">Template: {bowl.template.name}</p>
+                                    {bowl.template.description && (
+                                      <p className="text-xs text-gray-600">{bowl.template.description}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                             <div className="text-right">
-                              <p className="font-semibold">{formatVND(bowl.totalPrice ?? 0)}</p>
+                              <p className="font-semibold">{formatVND((bowl.totalPrice ?? bowl.linePrice) || 0)}</p>
                               <p className="text-sm text-gray-600">Qty: {bowl.quantity || 1}</p>
                             </div>
                           </div>
@@ -484,16 +600,17 @@ export default function OrdersPage() {
                           <div className="mt-3">
                             <h5 className="text-sm font-semibold text-gray-700 mb-2">Ingredients:</h5>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              {bowlItems
-                                .filter(item => item.bowlId === bowl.id)
-                                .map((item) => (
-                                  <div key={item.id} className="flex justify-between text-sm bg-gray-50 p-2 rounded">
-                                    <span>{item.ingredientId}</span>
-                                    <span>Qty: {item.quantity}</span>
-                                  </div>
-                                ))}
+                              {(bowl.items && bowl.items.length > 0
+                                ? bowl.items
+                                : bowlItems.filter(item => item.bowlId === bowl.id)
+                              ).map((item) => (
+                                <div key={item.id} className="flex justify-between text-sm bg-gray-50 p-2 rounded">
+                                  <span>{item.ingredient?.name || item.ingredientId}</span>
+                                  <span>Qty: {item.quantity}</span>
+                                </div>
+                              ))}
                             </div>
-                            {bowlItems.filter(item => item.bowlId === bowl.id).length === 0 && (
+                            {((bowl.items && bowl.items.length === 0) || (!bowl.items && bowlItems.filter(item => item.bowlId === bowl.id).length === 0)) && (
                               <p className="text-sm text-gray-500">No ingredients found.</p>
                             )}
                           </div>
@@ -503,44 +620,7 @@ export default function OrdersPage() {
                   )}
                 </div>
 
-                {/* Payment Transactions */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h3 className="text-lg font-semibold mb-3">Payment Transactions ({paymentTransactions.length})</h3>
-                  {paymentTransactions.length === 0 ? (
-                    <p className="text-gray-500">No payment transactions found for this order.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {paymentTransactions.map((payment) => (
-                        <div key={payment.id} className="bg-white p-4 rounded border">
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div>
-                              <span className="text-sm text-gray-600">Transaction ID:</span>
-                              <p className="font-mono text-sm">{payment.id}</p>
-                            </div>
-                            <div>
-                              <span className="text-sm text-gray-600">Amount:</span>
-                              <p className="font-semibold">{formatVND(payment.amount ?? 0)}</p>
-                            </div>
-                            <div>
-                              <span className="text-sm text-gray-600">Status:</span>
-                              <p className="text-sm">{payment.status || 'Unknown'}</p>
-                            </div>
-                            <div>
-                              <span className="text-sm text-gray-600">Method:</span>
-                              <p className="text-sm">{payment.paymentMethod || 'Unknown'}</p>
-                            </div>
-                          </div>
-                          {payment.transactionId && (
-                            <div className="mt-2">
-                              <span className="text-sm text-gray-600">External Transaction ID:</span>
-                              <p className="font-mono text-sm">{payment.transactionId}</p>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {/* Payment Transactions removed — backend does not provide per-order payment list */}
               </div>
             )}
           </div>

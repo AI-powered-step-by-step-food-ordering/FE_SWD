@@ -1,11 +1,40 @@
 import apiClient from './api.config';
-import { ApiResponse, User, UserUpdateRequest } from '@/types/api.types';
+import { ApiResponse, User, UserUpdateRequest, PageRequest, PaginatedApiResponse } from '@/types/api.types';
 
 class UserService {
   /**
-   * Get all users (Admin only)
+   * Get all users with pagination, search, and sort (Admin only)
    */
-  async getAll(): Promise<ApiResponse<User[]>> {
+  async getAll(params?: PageRequest): Promise<PaginatedApiResponse<User>> {
+    // Align with backend: use sortBy/sortDir
+    const searchParams = new URLSearchParams();
+
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.search) searchParams.append('search', params.search);
+
+    const anyParams = params as any;
+    let sortBy: string | undefined;
+    let sortDir: string | undefined;
+    if (params?.sort) {
+      const [field, direction] = params.sort.split(',');
+      sortBy = field;
+      sortDir = direction || 'desc';
+    } else if (anyParams?.sortField || anyParams?.sortDirection) {
+      sortBy = anyParams.sortField;
+      sortDir = anyParams.sortDirection;
+    }
+    if (sortBy) searchParams.append('sortBy', sortBy);
+    if (sortDir) searchParams.append('sortDir', sortDir);
+
+    const response = await apiClient.get<PaginatedApiResponse<User>>(`/api/users/getall?${searchParams.toString()}`);
+    return response.data;
+  }
+
+  /**
+   * Get all users (legacy method for backward compatibility)
+   */
+  async getAllLegacy(): Promise<ApiResponse<User[]>> {
     const response = await apiClient.get<ApiResponse<User[]>>('/api/users/getall');
     return response.data;
   }
@@ -51,8 +80,27 @@ class UserService {
   /**
    * Get inactive users (Admin only)
    */
-  async getInactive(): Promise<ApiResponse<User[]>> {
-    const response = await apiClient.get<ApiResponse<User[]>>('/api/users/inactive');
+  async getInactive(params?: PageRequest): Promise<PaginatedApiResponse<User>> {
+    // Support pagination and sorting on inactive users endpoint
+    const searchParams = new URLSearchParams();
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+
+    const anyParams = params as any;
+    let sortBy: string | undefined;
+    let sortDir: string | undefined;
+    if (params?.sort) {
+      const [field, direction] = params.sort.split(',');
+      sortBy = field;
+      sortDir = direction || 'desc';
+    } else if (anyParams?.sortField || anyParams?.sortDirection) {
+      sortBy = anyParams.sortField;
+      sortDir = anyParams.sortDirection;
+    }
+    if (sortBy) searchParams.append('sortBy', sortBy);
+    if (sortDir) searchParams.append('sortDir', sortDir);
+
+    const response = await apiClient.get<PaginatedApiResponse<User>>(`/api/users/inactive?${searchParams.toString()}`);
     return response.data;
   }
 
