@@ -5,7 +5,7 @@ class IngredientService {
   /**
    * Get all ingredients with pagination, search, and sort
    */
-  async getAll(params?: PageRequest): Promise<PaginatedApiResponse<Ingredient[]>> {
+  async getAll(params?: PageRequest): Promise<PaginatedApiResponse<Ingredient>> {
     // Align with backend: /api/ingredients/getall?page=&size=&sortBy=&sortDir=
     let url = '/api/ingredients/getall';
     const queryParams = new URLSearchParams();
@@ -32,7 +32,7 @@ class IngredientService {
       url += `?${queryParams.toString()}`;
     }
 
-    const response = await apiClient.get<PaginatedApiResponse<Ingredient[]>>(url);
+    const response = await apiClient.get<PaginatedApiResponse<Ingredient>>(url);
     return response.data;
   }
 
@@ -126,7 +126,8 @@ class IngredientService {
   async getByCategory(categoryId: string): Promise<Ingredient[]> {
     const response = await this.getAll();
     if (response.success && response.data) {
-      return response.data.filter((ingredient) => ingredient.categoryId === categoryId);
+      const list = response.data.content ?? [];
+      return list.filter((ingredient: Ingredient) => ingredient.categoryId === categoryId);
     }
     return [];
   }

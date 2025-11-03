@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import apiClient from '@/services/api.config';
 import { promotionService } from '@/services/promotion.service';
-import type { Promotion } from '@/types/api';
+import type { Promotion } from '@/types/api.types';
 import type { PromotionRequest as BackendPromotionRequest } from '@/types/api.types';
 import { toast } from 'react-toastify';
 import { formatVND } from '@/lib/format-number';
@@ -12,16 +12,30 @@ import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import AdminSearchBar from '@/components/admin/AdminSearchBar';
 import Pagination from '@/components/admin/Pagination';
 
+type PromotionForm = {
+  code: string;
+  name: string;
+  description: string;
+  discountType: 'PERCENTAGE' | 'FIXED';
+  discountValue: number;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+  usageLimit?: number;
+};
+
+type UiPromotion = Promotion & { description?: string };
+
 export default function PromotionsPage() {
   useRequireAdmin();
-  const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [promotions, setPromotions] = useState<UiPromotion[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
+  const [editingPromotion, setEditingPromotion] = useState<UiPromotion | null>(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
-  const [formData, setFormData] = useState<PromotionRequest>({
+  const [formData, setFormData] = useState<PromotionForm>({
     code: '',
     name: '',
     description: '',
@@ -59,7 +73,7 @@ export default function PromotionsPage() {
     try {
       setLoading(true);
       const response = await promotionService.getAll();
-      setPromotions((response?.data as unknown as Promotion[]) || []);
+      setPromotions(response?.data || []);
     } catch (error) {
       console.error('Failed to load promotions:', error);
       toast.error('Failed to load promotions');
@@ -104,18 +118,18 @@ export default function PromotionsPage() {
     }
   };
 
-  const handleEdit = (promotion: Promotion) => {
+  const handleEdit = (promotion: UiPromotion) => {
     setEditingPromotion(promotion);
     setFormData({
       code: promotion.code,
       name: promotion.name,
-      description: promotion.description,
-      discountType: promotion.discountType,
-      discountValue: promotion.discountValue,
-      startDate: promotion.startDate?.split('T')[0] || '',
-      endDate: promotion.endDate?.split('T')[0] || '',
+      description: promotion.description || '',
+      discountType: promotion.type === 'PERCENTAGE' ? 'PERCENTAGE' : 'FIXED',
+      discountValue: promotion.type === 'PERCENTAGE' ? (promotion.percentOff ?? 0) : (promotion.amountOff ?? 0),
+      startDate: promotion.startsAt?.split('T')[0] || '',
+      endDate: promotion.endsAt?.split('T')[0] || '',
       isActive: promotion.isActive,
-      usageLimit: promotion.usageLimit,
+      usageLimit: promotion.maxRedemptions,
     });
     setShowModal(true);
   };
@@ -143,9 +157,11 @@ export default function PromotionsPage() {
   const isPromotionActive = (promotion: Promotion) => {
     if (!promotion.isActive) return false;
     const now = new Date();
-    const start = new Date(promotion.startDate);
-    const end = new Date(promotion.endDate);
-    return now >= start && now <= end;
+    const start = promotion.startsAt ? new Date(promotion.startsAt) : undefined;
+    const end = promotion.endsAt ? new Date(promotion.endsAt) : undefined;
+    if (start && now < start) return false;
+    if (end && now > end) return false;
+    return true;
   };
 
   const filteredPromotions = promotions.filter((p) => {
@@ -219,22 +235,22 @@ export default function PromotionsPage() {
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Discount:</span>
                     <span className="font-semibold text-green-600">
-                      {promotion.discountType === 'PERCENTAGE'
-                        ? `${promotion.discountValue}%`
-                        : formatVND(promotion.discountValue ?? 0)}
+                      {promotion.type === 'PERCENTAGE'
+                        ? `${promotion.percentOff ?? 0}%`
+                        : formatVND(promotion.amountOff ?? 0)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Period:</span>
                     <span className="font-medium text-gray-900 text-xs">
-                      {new Date(promotion.startDate).toLocaleDateString()} - {new Date(promotion.endDate).toLocaleDateString()}
+                      {(promotion.startsAt ? new Date(promotion.startsAt).toLocaleDateString() : '')} - {(promotion.endsAt ? new Date(promotion.endsAt).toLocaleDateString() : '')}
                     </span>
                   </div>
-                  {promotion.usageLimit && (
+                  {promotion.maxRedemptions && (
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Usage:</span>
                       <span className="font-medium text-gray-900">
-                        {promotion.usageCount || 0} / {promotion.usageLimit}
+                        {promotion.maxRedemptions}
                       </span>
                     </div>
                   )}
@@ -322,7 +338,7 @@ export default function PromotionsPage() {
                         <select
                           required
                           value={formData.discountType}
-                          onChange={(e) => setFormData({ ...formData, discountType: e.target.value })}
+                          onChange={(e) => setFormData({ ...formData, discountType: e.target.value as 'PERCENTAGE' | 'FIXED' })}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                         >
                           <option value="PERCENTAGE">Percentage</option>

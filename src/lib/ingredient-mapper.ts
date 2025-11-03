@@ -98,7 +98,7 @@ export function getIngredientEmoji(ingredientName: string): string {
  */
 export function mapIngredientToFoodItem(ingredient: Ingredient): FoodItem {
   return {
-    id: ingredient.id,
+    id: ingredient.id || ingredient.name,
     name: ingredient.name,
     price: ingredient.unitPrice,
     nutrition: ingredient.nutrition || DEFAULT_NUTRITION,
@@ -174,8 +174,10 @@ export async function fetchFoodDataFromAPI(): Promise<GroupedIngredients> {
       throw new Error('Failed to fetch data');
     }
     
-    const categories = categoriesResponse.data.filter((cat) => cat.isActive);
-    const ingredients = ingredientsResponse.data;
+    const categoriesPage = categoriesResponse.data;
+    const ingredientsPage = ingredientsResponse.data;
+    const categories = (categoriesPage?.content ?? []).filter((cat: Category) => cat.isActive);
+    const ingredients = ingredientsPage?.content ?? [];
     
     // Group and return
     return groupIngredientsByCategory(ingredients, categories);

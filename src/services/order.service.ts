@@ -5,7 +5,7 @@ class OrderService {
   /**
    * Get all orders with pagination, search, and sort
    */
-  async getAll(params?: PageRequest): Promise<PaginatedApiResponse<Order[]>> {
+  async getAll(params?: PageRequest): Promise<PaginatedApiResponse<Order>> {
     // Align with backend: /api/orders/getall?page=&size=&sortBy=&sortDir=
     let url = '/api/orders/getall';
     const queryParams = new URLSearchParams();
@@ -34,7 +34,7 @@ class OrderService {
       url += `?${queryParams.toString()}`;
     }
 
-    const response = await apiClient.get<PaginatedApiResponse<Order[]>>(url);
+    const response = await apiClient.get<PaginatedApiResponse<Order>>(url);
     return response.data;
   }
 
@@ -44,13 +44,16 @@ class OrderService {
   async getAllLegacy(): Promise<ApiResponse<Order[]>> {
     // Fetch a large page and flatten to a simple array for client-side filtering
     const params = new URLSearchParams({ page: '0', size: '1000' });
-    const resp = await apiClient.get<PaginatedApiResponse<Order[]>>(`/api/orders/getall?${params.toString()}`);
+    const resp = await apiClient.get<PaginatedApiResponse<Order>>(`/api/orders/getall?${params.toString()}`);
     const page = resp.data?.data;
+    const flat: Order[] = Array.isArray(page?.content) ? page!.content : [];
     return {
       success: resp.data?.success ?? true,
+      code: resp.data?.code ?? 200,
       message: resp.data?.message ?? 'OK',
-      data: Array.isArray(page?.content) ? page.content : [],
-    } as ApiResponse<Order[]>;
+      data: flat,
+      timestamp: resp.data?.timestamp ?? new Date().toISOString(),
+    };
   }
 
   /**

@@ -11,7 +11,7 @@ export async function getServerData(): Promise<{ templates: BowlTemplate[]; cate
 
     const templates: BowlTemplate[] = Array.isArray(tplRes.data)
       ? tplRes.data
-      : (tplRes.data?.content ?? []);
+      : [];
 
     const categories: Category[] = Array.isArray(catRes.data)
       ? catRes.data

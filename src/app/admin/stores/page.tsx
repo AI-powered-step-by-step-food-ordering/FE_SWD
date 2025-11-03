@@ -18,10 +18,12 @@ const FirebaseImageUpload = dynamic(() => import('@/components/shared/FirebaseIm
 
 export default function StoresPage() {
   useRequireAdmin();
-  const [stores, setStores] = useState<Store[]>([]);
+  type UiStore = Store & { isActive?: boolean; openingHours?: string; imageUrl?: string };
+  type StoreForm = StoreRequest & { isActive: boolean; openingHours?: string; imageUrl?: string };
+  const [stores, setStores] = useState<UiStore[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [editingStore, setEditingStore] = useState<Store | null>(null);
+  const [editingStore, setEditingStore] = useState<UiStore | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
   const [search, setSearch] = useState('');
@@ -30,7 +32,7 @@ export default function StoresPage() {
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [useLegacy, setUseLegacy] = useState(false);
-  const [formData, setFormData] = useState<StoreRequest>({
+  const [formData, setFormData] = useState<StoreForm>({
     name: '',
     address: '',
     phone: '',
@@ -108,8 +110,11 @@ export default function StoresPage() {
   };
 
   // Handle sorting
-  const handleSort = (field: string) => {
-    if (sortField === field) {
+  const handleSort = (field: string, direction?: 'asc' | 'desc') => {
+    if (direction) {
+      setSortField(field);
+      setSortDirection(direction);
+    } else if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
       setSortField(field);
@@ -130,11 +135,16 @@ export default function StoresPage() {
     e.preventDefault();
     
     try {
+      const payload: StoreRequest = {
+        name: formData.name,
+        address: formData.address,
+        phone: formData.phone,
+      };
       if (editingStore) {
-        await storeService.update(editingStore.id, formData);
+        await storeService.update(editingStore.id, payload);
         toast.success('Store updated successfully');
       } else {
-        await storeService.create(formData);
+        await storeService.create(payload);
         toast.success('Store created successfully');
       }
       
@@ -147,13 +157,13 @@ export default function StoresPage() {
     }
   };
 
-  const handleEdit = (store: Store) => {
+  const handleEdit = (store: UiStore) => {
     setEditingStore(store);
     setFormData({
       name: store.name,
       address: store.address,
       phone: store.phone,
-      isActive: store.isActive,
+      isActive: store.isActive ?? true,
       openingHours: store.openingHours || '',
       imageUrl: store.imageUrl || '',
     });

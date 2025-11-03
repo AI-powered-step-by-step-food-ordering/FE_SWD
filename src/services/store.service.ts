@@ -5,7 +5,7 @@ class StoreService {
   /**
    * Get all stores with pagination, search, and sort
    */
-  async getAll(params?: PageRequest): Promise<PaginatedApiResponse<Store[]>> {
+  async getAll(params?: PageRequest): Promise<PaginatedApiResponse<Store>> {
     // Align with backend: /api/stores/getall?page=&size=&sortBy=&sortDir=
     let url = '/api/stores/getall';
     const queryParams = new URLSearchParams();
@@ -32,7 +32,7 @@ class StoreService {
       url += `?${queryParams.toString()}`;
     }
 
-    const response = await apiClient.get<PaginatedApiResponse<Store[]>>(url);
+    const response = await apiClient.get<PaginatedApiResponse<Store>>(url);
     return response.data;
   }
 

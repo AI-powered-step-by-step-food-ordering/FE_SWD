@@ -8,7 +8,7 @@ import dynamic from "next/dynamic";
 import apiClient from "@/services/api.config";
 import categoryService from "@/services/category.service";
 import { getFirebaseThumbnail } from "@/lib/firebase-storage";
-import type { Category, CategoryRequest } from "@/types/api";
+import type { Category, CategoryRequest } from "@/types/api.types";
 import { toast } from "react-toastify";
 import { useRequireAdmin } from "@/hooks/useRequireAdmin";
 
@@ -21,14 +21,18 @@ type Props = {
 export default function ClientCategories({ initialCategories = [] }: Props) {
   useRequireAdmin();
 
-  const [categories, setCategories] = useState<Category[]>(initialCategories);
+  type UiCategory = Category & { imageUrl?: string };
+  const [categories, setCategories] = useState<UiCategory[]>(initialCategories as UiCategory[]);
   const [showInactive, setShowInactive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [formData, setFormData] = useState<CategoryRequest>({
+  const [editingCategory, setEditingCategory] = useState<UiCategory | null>(null);
+  type CategoryForm = CategoryRequest & { imageUrl?: string };
+  const [formData, setFormData] = useState<CategoryForm>({
     name: "",
     kind: "CARB",
+    displayOrder: 0,
+    isActive: true,
     imageUrl: "",
   });
   const [search, setSearch] = useState('');
@@ -114,14 +118,23 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const payload: any = {
+        name: formData.name,
+        kind: formData.kind,
+        displayOrder: formData.displayOrder ?? 0,
+        isActive: editingCategory ? editingCategory.isActive : true,
+        // UI-only field; backend may accept or ignore
+        ...(formData.imageUrl ? { imageUrl: formData.imageUrl } : {}),
+      };
+
       if (editingCategory) {
         await apiClient.put(
           `/api/categories/update/${editingCategory.id}`,
-          formData,
+          payload,
         );
         toast.success("Category updated successfully");
       } else {
-        await apiClient.post("/api/categories/create", formData);
+        await apiClient.post("/api/categories/create", payload);
         toast.success("Category created successfully");
       }
       setShowModal(false);
@@ -159,11 +172,13 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
     }
   };
 
-  const handleEdit = (category: Category) => {
+  const handleEdit = (category: UiCategory) => {
     setEditingCategory(category);
     setFormData({
       name: category.name,
       kind: category.kind,
+      displayOrder: category.displayOrder ?? 0,
+      isActive: category.isActive ?? true,
       imageUrl: category.imageUrl || "",
     });
     setShowModal(true);
@@ -174,6 +189,8 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
     setFormData({
       name: "",
       kind: "CARB",
+      displayOrder: 0,
+      isActive: true,
       imageUrl: "",
     });
   };
@@ -348,7 +365,10 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
                     </div>
                     <div>
                       <label className="mb-1 block text-sm font-medium text-gray-700">Category Icon/Image</label>
-                      <FirebaseImageUpload onUpload={(url) => setFormData({ ...formData, imageUrl: url })} />
+                      <FirebaseImageUpload
+                        value={formData.imageUrl}
+                        onChange={(url: string) => setFormData({ ...formData, imageUrl: url })}
+                      />
                       {formData.imageUrl && (
                         <div className="mt-2">
                           <ImageWithFallback src={getFirebaseThumbnail(formData.imageUrl)} alt="Preview" width={60} height={60} className="rounded object-cover" fallbackSrc="/icon.svg" />

@@ -236,7 +236,7 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
       </div>
 
       <div className="flex items-center justify-between">
-        <AdminSearchBar placeholder="Search templates..." onSearch={setSearch} />
+        <AdminSearchBar placeholder="Search templates..." value={search} onChange={setSearch} />
         <div className="flex items-center gap-2">
           <span className={`text-sm ${!showInactive ? 'font-medium text-green-600' : 'text-gray-500'}`}>Active</span>
           <button onClick={() => setShowInactive(!showInactive)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showInactive ? 'bg-red-600' : 'bg-green-600'}`}> 

@@ -20,7 +20,8 @@ export default async function getServerData(): Promise<{ ingredients: Ingredient
     // The API shape in this repo often returns { success, data }.
     const ingredients: Ingredient[] = (ingsJson?.data ?? ingsJson) ?? [];
     // categories endpoint returns { data: Category[] } or similar nested shapes
-    const categories: Category[] = (catsJson?.data?.data ?? catsJson?.data ?? catsJson) ?? [];
+    // Categories endpoint may return paginated data; read content if present
+    const categories: Category[] = (catsJson?.data?.content ?? catsJson?.content ?? catsJson?.data ?? catsJson) ?? [];
 
     return { ingredients, categories };
   } catch (err) {

@@ -2,31 +2,31 @@
 
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import apiClient from '@/services/api.config';
-import orderService from '@/services/order.service';
+import apiClient from "@/services/api.config";
+import orderService from "@/services/order.service";
 // Removed bowlService/paymentService imports; order details now fetched via orderService.getById
 import type { Order, Bowl, BowlItem, Store, User } from "@/types/api.types";
 import { toast } from "react-toastify";
-import ImageWithFallback from '@/components/shared/ImageWithFallback';
-import { formatVND } from '@/lib/format-number';
-import { useRequireAdmin } from '@/hooks/useRequireAdmin';
-import AdminSearchBar from '@/components/admin/AdminSearchBar';
-import Pagination from '@/components/admin/Pagination';
+import ImageWithFallback from "@/components/shared/ImageWithFallback";
+import { formatVND } from "@/lib/format-number";
+import { useRequireAdmin } from "@/hooks/useRequireAdmin";
+import AdminSearchBar from "@/components/admin/AdminSearchBar";
+import Pagination from "@/components/admin/Pagination";
 
 export default function OrdersPage() {
   useRequireAdmin();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("ALL");
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [sortField, setSortField] = useState<string>('');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [sortField, setSortField] = useState<string>("");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [useLegacy, setUseLegacy] = useState(false);
-  
+
   // Modal state for order details
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderBowls, setOrderBowls] = useState<Bowl[]>([]);
@@ -46,15 +46,16 @@ export default function OrdersPage() {
         if (legacy.success && legacy.data) {
           let list = legacy.data;
           // Apply status filter
-          if (filter !== 'ALL') {
+          if (filter !== "ALL") {
             list = list.filter((o) => o.status === filter);
           }
           // Basic search by id or status
           if (q) {
-            list = list.filter((o) => (
-              (o.id?.toLowerCase().includes(q)) ||
-              (o.status?.toLowerCase().includes(q))
-            ));
+            list = list.filter(
+              (o) =>
+                o.id?.toLowerCase().includes(q) ||
+                o.status?.toLowerCase().includes(q),
+            );
           }
           const total = list.length;
           const startIndex = Math.max(0, (page - 1) * Math.max(1, pageSize));
@@ -78,7 +79,9 @@ export default function OrdersPage() {
       }
 
       // Default path: use paginated backend
-      const sortParam = sortField ? `${sortField},${sortDirection}` : 'createdAt,desc';
+      const sortParam = sortField
+        ? `${sortField},${sortDirection}`
+        : "createdAt,desc";
 
       const response = await orderService.getAll({
         page: page - 1, // Backend uses 0-indexed pages
@@ -88,8 +91,10 @@ export default function OrdersPage() {
 
       if (response.success && response.data) {
         let filteredOrders = response.data.content;
-        if (filter !== 'ALL') {
-          filteredOrders = filteredOrders.filter((order) => order.status === filter);
+        if (filter !== "ALL") {
+          filteredOrders = filteredOrders.filter(
+            (order) => order.status === filter,
+          );
         }
         setOrders(filteredOrders);
         setTotalElements(response.data.totalElements);
@@ -104,8 +109,8 @@ export default function OrdersPage() {
       if (status && status >= 500) {
         setUseLegacy(true);
       }
-      console.error('Failed to load orders:', error);
-      toast.error('Failed to load orders');
+      console.error("Failed to load orders:", error);
+      toast.error("Failed to load orders");
     } finally {
       setLoading(false);
     }
@@ -124,10 +129,10 @@ export default function OrdersPage() {
   // Handle sort
   const handleSort = (field: string) => {
     if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
     } else {
       setSortField(field);
-      setSortDirection('asc');
+      setSortDirection("asc");
     }
     setPage(1); // Reset to first page when sorting
   };
@@ -135,7 +140,7 @@ export default function OrdersPage() {
   // Get sort icon
   const getSortIcon = (field: string) => {
     if (sortField !== field) return <i className="bx bx-sort text-[16px]"></i>;
-    return sortDirection === 'asc' ? (
+    return sortDirection === "asc" ? (
       <i className="bx bx-sort-up text-[16px]"></i>
     ) : (
       <i className="bx bx-sort-down text-[16px]"></i>
@@ -153,70 +158,84 @@ export default function OrdersPage() {
         setSelectedOrder(freshOrder);
         const bowls = freshOrder.bowls || [];
         setOrderBowls(bowls);
-        const embeddedItems = bowls.flatMap(b => b.items || []);
+        const embeddedItems = bowls.flatMap((b) => b.items || []);
         setBowlItems(embeddedItems);
       } else {
         // Fallback to current order payload if API fails
         setSelectedOrder(order);
         const bowls = order.bowls || [];
         setOrderBowls(bowls);
-        const embeddedItems = bowls.flatMap(b => b.items || []);
+        const embeddedItems = bowls.flatMap((b) => b.items || []);
         setBowlItems(embeddedItems);
       }
-
     } catch (error) {
-      console.error('Error loading order details:', error);
-      toast.error('Failed to load order details');
+      console.error("Error loading order details:", error);
+      toast.error("Failed to load order details");
     } finally {
       setOrderDetailsLoading(false);
     }
   };
 
   const handleConfirm = async (id: string) => {
-    if (!confirm('Are you sure you want to confirm this order?')) return;
+    if (!confirm("Are you sure you want to confirm this order?")) return;
     try {
-      const response = await apiClient.post<{ data: Order, message: string, success: boolean }>(`/api/orders/confirm/${id}`);
+      const response = await apiClient.post<{
+        data: Order;
+        message: string;
+        success: boolean;
+      }>(`/api/orders/confirm/${id}`);
       if (response.data?.success && response.data?.data) {
-        toast.success('Order confirmed successfully');
+        toast.success("Order confirmed successfully");
         loadOrders(); // Reload data to maintain pagination
       } else {
-        toast.error(response.data?.message || 'Failed to confirm order');
+        toast.error(response.data?.message || "Failed to confirm order");
       }
     } catch (error) {
-      console.error('Failed to confirm order:', error);
-      toast.error('Failed to confirm order');
+      console.error("Failed to confirm order:", error);
+      toast.error("Failed to confirm order");
     }
   };
 
   const handleComplete = async (id: string) => {
-    if (!confirm('Are you sure you want to mark this order as completed?')) return;
+    if (!confirm("Are you sure you want to mark this order as completed?"))
+      return;
     try {
-      const response = await apiClient.post<{ data: Order, message: string, success: boolean }>(`/api/orders/complete/${id}`);
+      const response = await apiClient.post<{
+        data: Order;
+        message: string;
+        success: boolean;
+      }>(`/api/orders/complete/${id}`);
       if (response.data?.success && response.data?.data) {
-        toast.success('Order completed successfully');
+        toast.success("Order completed successfully");
         loadOrders(); // Reload data to maintain pagination
       } else {
-        toast.error(response.data?.message || 'Failed to complete order');
+        toast.error(response.data?.message || "Failed to complete order");
       }
     } catch (error) {
-      console.error('Failed to complete order:', error);
-      toast.error('Failed to complete order');
+      console.error("Failed to complete order:", error);
+      toast.error("Failed to complete order");
     }
   };
 
   const handleCancel = async (id: string) => {
-    const reason = prompt('Enter cancellation reason (optional):');
+    const reason = prompt("Enter cancellation reason (optional):");
     try {
-      const response = await apiClient.post<{ data: Order, message: string, success: boolean }>(`/api/orders/cancel/${id}${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`);
+      const response = await apiClient.post<{
+        data: Order;
+        message: string;
+        success: boolean;
+      }>(
+        `/api/orders/cancel/${id}${reason ? `?reason=${encodeURIComponent(reason)}` : ""}`,
+      );
       if (response.data?.success && response.data?.data) {
-        toast.success('Order cancelled successfully');
+        toast.success("Order cancelled successfully");
         loadOrders(); // Reload data to maintain pagination
       } else {
-        toast.error(response.data?.message || 'Failed to cancel order');
+        toast.error(response.data?.message || "Failed to cancel order");
       }
     } catch (error) {
-      console.error('Failed to cancel order:', error);
-      toast.error('Failed to cancel order');
+      console.error("Failed to cancel order:", error);
+      toast.error("Failed to cancel order");
     }
   };
 
@@ -251,7 +270,11 @@ export default function OrdersPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <AdminSearchBar value={search} onChange={handleSearch} placeholder="Tìm đơn hàng..." />
+            <AdminSearchBar
+              value={search}
+              onChange={handleSearch}
+              placeholder="Tìm đơn hàng..."
+            />
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
@@ -296,61 +319,61 @@ export default function OrdersPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('id')}
+                  <th
+                    className="cursor-pointer px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 hover:bg-gray-100"
+                    onClick={() => handleSort("id")}
                   >
                     <div className="flex items-center gap-1">
                       Order ID
-                      {getSortIcon('id')}
+                      {getSortIcon("id")}
                     </div>
                   </th>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('userId')}
+                  <th
+                    className="cursor-pointer px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 hover:bg-gray-100"
+                    onClick={() => handleSort("userId")}
                   >
                     <div className="flex items-center gap-1">
                       User
-                      {getSortIcon('userId')}
+                      {getSortIcon("userId")}
                     </div>
                   </th>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('storeId')}
+                  <th
+                    className="cursor-pointer px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 hover:bg-gray-100"
+                    onClick={() => handleSort("storeId")}
                   >
                     <div className="flex items-center gap-1">
                       Store ID
-                      {getSortIcon('storeId')}
+                      {getSortIcon("storeId")}
                     </div>
                   </th>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('status')}
+                  <th
+                    className="cursor-pointer px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 hover:bg-gray-100"
+                    onClick={() => handleSort("status")}
                   >
                     <div className="flex items-center gap-1">
                       Status
-                      {getSortIcon('status')}
+                      {getSortIcon("status")}
                     </div>
                   </th>
-                  <th 
-                    className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('subtotalAmount')}
+                  <th
+                    className="cursor-pointer px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 hover:bg-gray-100"
+                    onClick={() => handleSort("subtotalAmount")}
                   >
                     <div className="flex items-center justify-end gap-1">
                       Subtotal
-                      {getSortIcon('subtotalAmount')}
+                      {getSortIcon("subtotalAmount")}
                     </div>
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
                     Discount
                   </th>
-                  <th 
-                    className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('totalAmount')}
+                  <th
+                    className="cursor-pointer px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 hover:bg-gray-100"
+                    onClick={() => handleSort("totalAmount")}
                   >
                     <div className="flex items-center justify-end gap-1">
                       Total
-                      {getSortIcon('totalAmount')}
+                      {getSortIcon("totalAmount")}
                     </div>
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -387,7 +410,8 @@ export default function OrdersPage() {
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
                         <div className="text-sm text-gray-900">
-                          {order.userFullName || `${order.userId?.slice(0, 8) || "N/A"}...`}
+                          {order.userFullName ||
+                            `${order.userId?.slice(0, 8) || "N/A"}...`}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
@@ -470,21 +494,24 @@ export default function OrdersPage() {
           pageSize={pageSize}
           total={totalElements}
           onPageChange={(p) => setPage(p)}
-          onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+          onPageSizeChange={(s) => {
+            setPageSize(s);
+            setPage(1);
+          }}
         />
       </div>
 
       {/* Order Details Modal */}
       {showOrderModal && selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="mx-4 max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white p-6">
+            <div className="mb-6 flex items-center justify-between">
               <h2 className="text-2xl font-bold text-gray-900">
                 Order Details - {selectedOrder.id}
               </h2>
               <button
                 onClick={() => setShowOrderModal(false)}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
+                className="text-2xl text-gray-500 hover:text-gray-700"
                 aria-label="Close"
               >
                 <i className="bx bx-x"></i>
@@ -492,64 +519,88 @@ export default function OrdersPage() {
             </div>
 
             {orderDetailsLoading ? (
-              <div className="flex justify-center items-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+              <div className="flex items-center justify-center py-8">
+                <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-indigo-600"></div>
                 <span className="ml-2">Loading order details...</span>
               </div>
             ) : (
               <div className="space-y-6">
                 {/* Basic Order Information */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h3 className="text-lg font-semibold mb-3">Order Information</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="rounded-lg bg-gray-50 p-4">
+                  <h3 className="mb-3 text-lg font-semibold">
+                    Order Information
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
                     <div>
                       <span className="text-sm text-gray-600">Order ID:</span>
                       <p className="font-mono text-sm">{selectedOrder.id}</p>
                     </div>
                     <div>
                       <span className="text-sm text-gray-600">User:</span>
-                      <p className="text-sm">{selectedOrder.userFullName || selectedOrder.userId}</p>
+                      <p className="text-sm">
+                        {selectedOrder.userFullName || selectedOrder.userId}
+                      </p>
                     </div>
                     <div>
                       <span className="text-sm text-gray-600">Store ID:</span>
-                      <p className="font-mono text-sm">{selectedOrder.storeId}</p>
+                      <p className="font-mono text-sm">
+                        {selectedOrder.storeId}
+                      </p>
                     </div>
                     <div>
                       <span className="text-sm text-gray-600">Status:</span>
-                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${getStatusColor(selectedOrder.status)}`}>
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs font-semibold ${getStatusColor(selectedOrder.status)}`}
+                      >
                         {selectedOrder.status}
                       </span>
                     </div>
                     <div>
-                      <span className="text-sm text-gray-600">Pickup Time:</span>
-                      <p className="text-sm">{selectedOrder.pickupAt ? new Date(selectedOrder.pickupAt).toLocaleString() : 'Not set'}</p>
+                      <span className="text-sm text-gray-600">
+                        Pickup Time:
+                      </span>
+                      <p className="text-sm">
+                        {selectedOrder.pickupAt
+                          ? new Date(selectedOrder.pickupAt).toLocaleString()
+                          : "Not set"}
+                      </p>
                     </div>
                     <div>
                       <span className="text-sm text-gray-600">Created:</span>
-                      <p className="text-sm">{new Date(selectedOrder.createdAt).toLocaleString()}</p>
+                      <p className="text-sm">
+                        {selectedOrder.createdAt
+                          ? new Date(selectedOrder.createdAt).toLocaleString()
+                          : "N/A"}
+                      </p>
                     </div>
                   </div>
                   {selectedOrder.note && (
                     <div className="mt-4">
                       <span className="text-sm text-gray-600">Note:</span>
-                      <p className="text-sm bg-white p-2 rounded border">{selectedOrder.note}</p>
+                      <p className="rounded border bg-white p-2 text-sm">
+                        {selectedOrder.note}
+                      </p>
                     </div>
                   )}
                 </div>
 
                 {/* Order Totals */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h3 className="text-lg font-semibold mb-3">Order Totals</h3>
+                <div className="rounded-lg bg-gray-50 p-4">
+                  <h3 className="mb-3 text-lg font-semibold">Order Totals</h3>
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span>Subtotal:</span>
-                      <span>{formatVND(selectedOrder.subtotalAmount ?? 0)}</span>
+                      <span>
+                        {formatVND(selectedOrder.subtotalAmount ?? 0)}
+                      </span>
                     </div>
                     <div className="flex justify-between text-green-600">
                       <span>Discount:</span>
-                      <span>-{formatVND(selectedOrder.promotionTotal ?? 0)}</span>
+                      <span>
+                        -{formatVND(selectedOrder.promotionTotal ?? 0)}
+                      </span>
                     </div>
-                    <div className="flex justify-between font-semibold text-lg border-t pt-2">
+                    <div className="flex justify-between border-t pt-2 text-lg font-semibold">
                       <span>Total:</span>
                       <span>{formatVND(selectedOrder.totalAmount ?? 0)}</span>
                     </div>
@@ -557,24 +608,37 @@ export default function OrdersPage() {
                 </div>
 
                 {/* Bowls */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h3 className="text-lg font-semibold mb-3">Bowls ({orderBowls.length})</h3>
+                <div className="rounded-lg bg-gray-50 p-4">
+                  <h3 className="mb-3 text-lg font-semibold">
+                    Bowls ({orderBowls.length})
+                  </h3>
                   {orderBowls.length === 0 ? (
-                    <p className="text-gray-500">No bowls found for this order.</p>
+                    <p className="text-gray-500">
+                      No bowls found for this order.
+                    </p>
                   ) : (
                     <div className="space-y-4">
                       {orderBowls.map((bowl) => (
-                        <div key={bowl.id} className="bg-white p-4 rounded border">
-                          <div className="flex justify-between items-start mb-2">
+                        <div
+                          key={bowl.id}
+                          className="rounded border bg-white p-4"
+                        >
+                          <div className="mb-2 flex items-start justify-between">
                             <div>
                               <h4 className="font-semibold">{bowl.name}</h4>
-                              <p className="text-sm text-gray-600 font-mono">Bowl ID: {bowl.id}</p>
+                              <p className="font-mono text-sm text-gray-600">
+                                Bowl ID: {bowl.id}
+                              </p>
                               {bowl.template && (
                                 <div className="mt-2 flex items-center gap-3">
-                                  <div className="w-16 h-16 relative">
+                                  <div className="relative h-16 w-16">
                                     <ImageWithFallback
-                                      src={bowl.template.imageUrl || '/icon.svg'}
-                                      alt={bowl.template.name || 'Bowl Template'}
+                                      src={
+                                        bowl.template.imageUrl || "/icon.svg"
+                                      }
+                                      alt={
+                                        bowl.template.name || "Bowl Template"
+                                      }
                                       width={64}
                                       height={64}
                                       className="rounded object-cover"
@@ -582,36 +646,61 @@ export default function OrdersPage() {
                                     />
                                   </div>
                                   <div>
-                                    <p className="text-sm text-gray-800">Template: {bowl.template.name}</p>
+                                    <p className="text-sm text-gray-800">
+                                      Template: {bowl.template.name}
+                                    </p>
                                     {bowl.template.description && (
-                                      <p className="text-xs text-gray-600">{bowl.template.description}</p>
+                                      <p className="text-xs text-gray-600">
+                                        {bowl.template.description}
+                                      </p>
                                     )}
                                   </div>
                                 </div>
                               )}
                             </div>
                             <div className="text-right">
-                              <p className="font-semibold">{formatVND((bowl.totalPrice ?? bowl.linePrice) || 0)}</p>
-                              <p className="text-sm text-gray-600">Qty: {bowl.quantity || 1}</p>
+                              <p className="font-semibold">
+                                {formatVND(
+                                  (bowl.totalPrice ?? bowl.linePrice) || 0,
+                                )}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                Qty: {bowl.quantity || 1}
+                              </p>
                             </div>
                           </div>
-                          
+
                           {/* Bowl Items */}
                           <div className="mt-3">
-                            <h5 className="text-sm font-semibold text-gray-700 mb-2">Ingredients:</h5>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <h5 className="mb-2 text-sm font-semibold text-gray-700">
+                              Ingredients:
+                            </h5>
+                            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                               {(bowl.items && bowl.items.length > 0
                                 ? bowl.items
-                                : bowlItems.filter(item => item.bowlId === bowl.id)
+                                : bowlItems.filter(
+                                    (item) => item.bowlId === bowl.id,
+                                  )
                               ).map((item) => (
-                                <div key={item.id} className="flex justify-between text-sm bg-gray-50 p-2 rounded">
-                                  <span>{item.ingredient?.name || item.ingredientId}</span>
+                                <div
+                                  key={item.id}
+                                  className="flex justify-between rounded bg-gray-50 p-2 text-sm"
+                                >
+                                  <span>
+                                    {item.ingredient?.name || item.ingredientId}
+                                  </span>
                                   <span>Qty: {item.quantity}</span>
                                 </div>
                               ))}
                             </div>
-                            {((bowl.items && bowl.items.length === 0) || (!bowl.items && bowlItems.filter(item => item.bowlId === bowl.id).length === 0)) && (
-                              <p className="text-sm text-gray-500">No ingredients found.</p>
+                            {((bowl.items && bowl.items.length === 0) ||
+                              (!bowl.items &&
+                                bowlItems.filter(
+                                  (item) => item.bowlId === bowl.id,
+                                ).length === 0)) && (
+                              <p className="text-sm text-gray-500">
+                                No ingredients found.
+                              </p>
                             )}
                           </div>
                         </div>
