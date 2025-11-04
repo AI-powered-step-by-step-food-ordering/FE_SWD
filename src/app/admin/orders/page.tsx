@@ -6,7 +6,7 @@ import apiClient from '@/services/api.config';
 import orderService from '@/services/order.service';
 import bowlService from '@/services/bowl.service';
 import paymentService from '@/services/payment.service';
-import type { Order, Bowl, BowlItem, PaymentTransaction, Store, User } from "@/types/api";
+import type { Order, Bowl, BowlItem, PaymentTransaction } from "@/types/api.types";
 import { toast } from "react-toastify";
 import { formatVND } from '@/lib/format-number';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
@@ -37,8 +37,9 @@ export default function OrdersPage() {
   const loadOrders = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get<{ data: Order[] }>('/api/orders/getall');
-      setOrders(response.data?.data || []);
+      const response = await orderService.getAll({ page: 0, size: 500, sortBy: 'createdAt', sortDir: 'desc' });
+      const list = (response.data as any)?.content || [];
+      setOrders(list as Order[]);
     } catch (error) {
       console.error('Failed to load orders:', error);
       toast.error('Failed to load orders');
@@ -54,20 +55,20 @@ export default function OrdersPage() {
       setShowOrderModal(true);
 
       // Load bowls for this order
-      const bowlsResponse = await bowlService.getAll();
-      const orderBowls = bowlsResponse.data.filter(bowl => bowl.orderId === order.id);
+      const bowlsResponse = await bowlService.getAll({ page: 0, size: 500 });
+      const orderBowls = ((bowlsResponse.data as any)?.content || []).filter((bowl: Bowl) => bowl.orderId === order.id);
       setOrderBowls(orderBowls);
 
       // Load bowl items for these bowls
       const bowlItemsResponse = await bowlService.getAllItems();
-      const orderBowlItems = bowlItemsResponse.data.filter(item => 
-        orderBowls.some(bowl => bowl.id === item.bowlId)
+      const orderBowlItems = (bowlItemsResponse.data || []).filter(item => 
+        orderBowls.some((bowl: Bowl) => bowl.id === item.bowlId)
       );
       setBowlItems(orderBowlItems);
 
       // Load payment transactions for this order
       const paymentsResponse = await paymentService.getByOrderId(order.id);
-      setPaymentTransactions(paymentsResponse.data);
+      setPaymentTransactions(paymentsResponse.data || []);
 
     } catch (error) {
       console.error('Error loading order details:', error);
@@ -430,7 +431,7 @@ export default function OrdersPage() {
                     </div>
                     <div>
                       <span className="text-sm text-gray-600">Created:</span>
-                      <p className="text-sm">{new Date(selectedOrder.createdAt).toLocaleString()}</p>
+                      <p className="text-sm">{selectedOrder.createdAt ? new Date(selectedOrder.createdAt as any).toLocaleString() : 'N/A'}</p>
                     </div>
                   </div>
                   {selectedOrder.note && (
@@ -475,8 +476,7 @@ export default function OrdersPage() {
                               <p className="text-sm text-gray-600 font-mono">Bowl ID: {bowl.id}</p>
                             </div>
                             <div className="text-right">
-                              <p className="font-semibold">{formatVND(bowl.totalPrice ?? 0)}</p>
-                              <p className="text-sm text-gray-600">Qty: {bowl.quantity || 1}</p>
+                              <p className="font-semibold">{formatVND((bowl as any).totalPrice ?? (bowl as any).linePrice ?? 0)}</p>
                             </div>
                           </div>
                           
@@ -527,15 +527,15 @@ export default function OrdersPage() {
                             </div>
                             <div>
                               <span className="text-sm text-gray-600">Method:</span>
-                              <p className="text-sm">{payment.paymentMethod || 'Unknown'}</p>
+                              <p className="text-sm">{(payment as any).paymentMethod || (payment as any).method || 'Unknown'}</p>
                             </div>
                           </div>
-                          {payment.transactionId && (
+                          {(payment as any).transactionId || (payment as any).providerTxnId ? (
                             <div className="mt-2">
                               <span className="text-sm text-gray-600">External Transaction ID:</span>
-                              <p className="font-mono text-sm">{payment.transactionId}</p>
+                              <p className="font-mono text-sm">{(payment as any).transactionId || (payment as any).providerTxnId}</p>
                             </div>
-                          )}
+                          ) : null}
                         </div>
                       ))}
                     </div>

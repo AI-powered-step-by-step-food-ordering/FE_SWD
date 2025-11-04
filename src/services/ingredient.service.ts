@@ -1,13 +1,27 @@
 import apiClient from './api.config';
-import { ApiResponse, Ingredient, IngredientRequest } from '@/types/api.types';
+import { ApiResponse, Ingredient, IngredientRequest, PagedResponse } from '@/types/api';
 
 class IngredientService {
   /**
    * Get all ingredients
    */
-  async getAll(): Promise<ApiResponse<Ingredient[]>> {
-    const response = await apiClient.get<ApiResponse<Ingredient[]>>('/api/ingredients/getall');
-    return response.data;
+  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Ingredient>>> {
+    const response = await apiClient.get<ApiResponse<any>>('/api/ingredients/getall', { params });
+    const res = response.data as ApiResponse<any>;
+    if (Array.isArray(res.data)) {
+      const arr = res.data as Ingredient[];
+      const synthetic: PagedResponse<Ingredient> = {
+        content: arr,
+        page: 0,
+        size: arr.length,
+        totalElements: arr.length,
+        totalPages: 1,
+        first: true,
+        last: true,
+      };
+      return { ...res, data: synthetic } as ApiResponse<PagedResponse<Ingredient>>;
+    }
+    return res as ApiResponse<PagedResponse<Ingredient>>;
   }
 
   /**
@@ -15,6 +29,20 @@ class IngredientService {
    */
   async getById(id: string): Promise<ApiResponse<Ingredient>> {
     const response = await apiClient.get<ApiResponse<Ingredient>>(`/api/ingredients/getbyid/${id}`);
+    return response.data;
+  }
+
+  /**
+   * Get ingredients by Category (paged) - backend native endpoint
+   */
+  async getByCategoryPaged(
+    categoryId: string,
+    params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }
+  ): Promise<ApiResponse<PagedResponse<Ingredient>>> {
+    const response = await apiClient.get<ApiResponse<PagedResponse<Ingredient>>>(
+      `/api/ingredients/category/${encodeURIComponent(categoryId)}`,
+      { params }
+    );
     return response.data;
   }
 
@@ -90,11 +118,8 @@ class IngredientService {
    * Get ingredients by category
    */
   async getByCategory(categoryId: string): Promise<Ingredient[]> {
-    const response = await this.getAll();
-    if (response.success && response.data) {
-      return response.data.filter((ingredient) => ingredient.categoryId === categoryId);
-    }
-    return [];
+    const response = await this.getByCategoryPaged(categoryId, { page: 0, size: 500 });
+    return response.data?.content || [];
   }
 }
 

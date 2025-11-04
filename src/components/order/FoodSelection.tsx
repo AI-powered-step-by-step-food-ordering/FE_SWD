@@ -77,9 +77,12 @@ export default function FoodSelection({ category, items, onItemSelect, onSkip, s
             </div>
             <div className="flex justify-between items-center text-sm">
               <span className="font-bold text-green-600">{formatVND(item.price)}</span>
-              <span className="text-gray-600">
-                {item.nutrition.calories} kcal | {item.nutrition.protein}g protein
-              </span>
+              {/** API chưa có dữ liệu dinh dưỡng, tạm ẩn */}
+              {false && (
+                <span className="text-gray-600">
+                  {item.nutrition.calories} kcal | {item.nutrition.protein}g protein
+                </span>
+              )}
             </div>
           </button>
         ))}

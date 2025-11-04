@@ -1,12 +1,12 @@
 import apiClient from './api.config';
-import { ApiResponse, Bowl, BowlRequest, BowlItem, BowlItemRequest } from '@/types/api.types';
+import { ApiResponse, Bowl, BowlRequest, BowlItem, BowlItemRequest, PagedResponse } from '@/types/api.types';
 
 class BowlService {
   /**
    * Get all bowls
    */
-  async getAll(): Promise<ApiResponse<Bowl[]>> {
-    const response = await apiClient.get<ApiResponse<Bowl[]>>('/api/bowls/getall');
+  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Bowl>>> {
+    const response = await apiClient.get<ApiResponse<PagedResponse<Bowl>>>('/api/bowls/getall', { params });
     return response.data;
   }
 
@@ -15,6 +15,14 @@ class BowlService {
    */
   async getById(id: string): Promise<ApiResponse<Bowl>> {
     const response = await apiClient.get<ApiResponse<Bowl>>(`/api/bowls/getbyid/${id}`);
+    return response.data;
+  }
+
+  /**
+   * Get bowl by ID including items
+   */
+  async getByIdWithItems(id: string): Promise<ApiResponse<Bowl>> {
+    const response = await apiClient.get<ApiResponse<Bowl>>(`/api/bowls/getbyid/${id}/with-items`);
     return response.data;
   }
 

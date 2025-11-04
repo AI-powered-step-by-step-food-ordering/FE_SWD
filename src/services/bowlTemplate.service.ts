@@ -5,14 +5,15 @@ import {
   BowlTemplateRequest,
   TemplateStep,
   TemplateStepRequest,
+  PagedResponse,
 } from '@/types/api.types';
 
 class BowlTemplateService {
   /**
    * Get all bowl templates
    */
-  async getAll(): Promise<ApiResponse<BowlTemplate[]>> {
-    const response = await apiClient.get<ApiResponse<BowlTemplate[]>>('/api/bowl_templates/getall');
+  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<BowlTemplate>>> {
+    const response = await apiClient.get<ApiResponse<PagedResponse<BowlTemplate>>>('/api/bowl_templates/getall', { params });
     return response.data;
   }
 
@@ -65,11 +66,9 @@ class BowlTemplateService {
    * Get active templates only
    */
   async getActiveTemplates(): Promise<BowlTemplate[]> {
-    const response = await this.getAll();
-    if (response.success && response.data) {
-      return response.data.filter((template) => template.isActive);
-    }
-    return [];
+    const response = await this.getAll({ page: 0, size: 100 });
+    const content = response.data?.content ?? [];
+    return content.filter((template) => template.active === true);
   }
 
   // Template Steps Methods

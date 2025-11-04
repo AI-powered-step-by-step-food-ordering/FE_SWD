@@ -60,7 +60,8 @@ export default function CustomizeBowlPage() {
       ]);
 
       if (categoriesRes.success) {
-        setCategories(categoriesRes.data);
+        const data: any = categoriesRes.data as any;
+        setCategories((data?.content || data) as Category[]);
       }
       setTemplates(activeTemplates);
     } catch (err) {
@@ -107,7 +108,7 @@ export default function CustomizeBowlPage() {
         quantity: 100, // Default quantity
         unitPrice: ingredient.unitPrice,
         bowlId: bowlId,
-        ingredientId: ingredient.id
+        ingredientId: ingredient.id as string
       };
 
       const response = await bowlService.createItem(bowlItemData);

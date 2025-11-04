@@ -1,20 +1,20 @@
 import apiClient from './api.config';
-import { ApiResponse, Order, OrderRequest, UpdateOrderStatusRequest } from '@/types/api.types';
+import { ApiResponse, Order, OrderRequest, UpdateOrderStatusRequest, PagedResponse } from '@/types/api.types';
 
 class OrderService {
   /**
    * Get all orders
    */
-  async getAll(): Promise<ApiResponse<Order[]>> {
-    const response = await apiClient.get<ApiResponse<Order[]>>('/api/orders/getall');
+  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Order>>> {
+    const response = await apiClient.get<ApiResponse<PagedResponse<Order>>>('/api/orders/getall', { params });
     return response.data;
   }
 
   /**
    * Get order history by user ID
    */
-  async getOrderHistory(userId: string): Promise<ApiResponse<Order[]>> {
-    const response = await apiClient.get<ApiResponse<Order[]>>(`/api/orders/order-history/${userId}`);
+  async getOrderHistory(userId: string, params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Order>>> {
+    const response = await apiClient.get<ApiResponse<PagedResponse<Order>>>(`/api/orders/order-history/${userId}` , { params });
     return response.data;
   }
 
@@ -96,7 +96,8 @@ class OrderService {
   async applyPromotion(id: string, promoCode: string): Promise<ApiResponse<Order>> {
     const response = await apiClient.post<ApiResponse<Order>>(
       `/api/orders/apply-promo/${id}`,
-      { promoCode }
+      null,
+      { params: { code: promoCode } }
     );
     return response.data;
   }

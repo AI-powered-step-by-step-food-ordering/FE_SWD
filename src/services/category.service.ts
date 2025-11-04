@@ -1,21 +1,34 @@
 import apiClient from './api.config';
-import { ApiResponse, Category, CategoryRequest } from '@/types/api.types';
+import { ApiResponse, Category, CategoryRequest, PagedResponse } from '@/types/api.types';
 
 class CategoryService {
   /**
    * Get all categories
    */
-  async getAll(): Promise<ApiResponse<Category[]>> {
-    const response = await apiClient.get<ApiResponse<any[]>>('/api/categories/getall');
-    const res = response.data as ApiResponse<any[]>;
-    if (res?.data) {
-      // Normalize backend `active` -> frontend `isActive`
-      res.data = res.data.map((cat: any) => ({
-        ...cat,
-        isActive: typeof cat.isActive === 'boolean' ? cat.isActive : !!cat.active,
-      }));
+  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Category>>> {
+    const response = await apiClient.get<ApiResponse<any>>('/api/categories/getall', { params });
+    const res = response.data as ApiResponse<any>;
+    let content: any[] = [];
+    if (Array.isArray(res.data)) {
+      content = res.data;
+    } else if (res?.data?.content && Array.isArray(res.data.content)) {
+      content = res.data.content;
     }
-    return res as ApiResponse<Category[]>;
+    // Normalize active flag
+    content = content.map((cat: any) => ({
+      ...cat,
+      isActive: typeof cat.isActive === 'boolean' ? cat.isActive : !!cat.active,
+    }));
+    const paged: PagedResponse<Category> = {
+      content: content as Category[],
+      page: res?.data?.page ?? 0,
+      size: res?.data?.size ?? content.length,
+      totalElements: res?.data?.totalElements ?? content.length,
+      totalPages: res?.data?.totalPages ?? 1,
+      first: res?.data?.first ?? true,
+      last: res?.data?.last ?? true,
+    };
+    return { ...res, data: paged } as ApiResponse<PagedResponse<Category>>;
   }
 
   /**
@@ -120,11 +133,14 @@ class CategoryService {
    */
   async getInactive(): Promise<ApiResponse<Category[]>> {
     const response = await this.getAll();
-    if (response.success && response.data) {
-      const inactiveCategories = response.data.filter((cat) => !cat.isActive);
+    if (response.data) {
+      const inactiveCategories = (response.data.content || []).filter((cat: Category) => !cat.isActive);
       return {
         ...response,
-        data: inactiveCategories
+        data: {
+          ...response.data,
+          content: inactiveCategories
+        }
       };
     }
     return response;
@@ -135,8 +151,8 @@ class CategoryService {
    */
   async getActiveCategories(): Promise<Category[]> {
     const response = await this.getAll();
-    if (response.success && response.data) {
-      return response.data.filter((cat) => cat.isActive);
+    if (response.data) {
+      return (response.data.content || []).filter((cat: Category) => cat.isActive);
     }
     return [];
   }
@@ -146,8 +162,8 @@ class CategoryService {
    */
   async getCategoriesByKind(kind: string): Promise<Category[]> {
     const response = await this.getAll();
-    if (response.success && response.data) {
-      return response.data.filter((cat) => cat.kind === kind && cat.isActive);
+    if (response.data) {
+      return (response.data.content || []).filter((cat: Category) => cat.kind === kind && cat.isActive);
     }
     return [];
   }

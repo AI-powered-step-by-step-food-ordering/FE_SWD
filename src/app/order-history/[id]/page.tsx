@@ -23,7 +23,7 @@ export default function OrderTrackingPage() {
     try {
       // Fetch order first (critical)
       const orderRes = await orderService.getById(orderId);
-      if (orderRes.success && orderRes.data) {
+      if (orderRes.data) {
         setOrder(orderRes.data);
         await loadBowls(orderRes.data.id);
       } else {
@@ -36,7 +36,7 @@ export default function OrderTrackingPage() {
       if (FETCH_PAYMENTS) {
         try {
           const paymentsRes = await paymentService.getByOrderId(orderId);
-          if (paymentsRes?.success && paymentsRes.data) {
+          if (paymentsRes?.data) {
             setPayments(paymentsRes.data);
           }
         } catch (e) {
@@ -61,10 +61,10 @@ export default function OrderTrackingPage() {
     try {
       // In a real app, you'd have an endpoint to get bowls by order ID
       // For now, we'll simulate this
-      const bowlsRes = await bowlService.getAll();
-      if (bowlsRes.success) {
-        // Filter bowls for this order (in real app, this would be done by the API)
-        setBowls(bowlsRes.data.filter(bowl => bowl.orderId === orderId));
+      const bowlsRes = await bowlService.getAll({ page: 0, size: 200 });
+      if (bowlsRes.data) {
+        const list = (bowlsRes.data?.content || []) as any[];
+        setBowls(list.filter((bowl: any) => bowl.orderId === orderId));
       }
     } catch (err) {
       console.error('Error loading bowls:', err);
@@ -76,7 +76,7 @@ export default function OrderTrackingPage() {
 
     try {
       const response = await orderService.cancel(order.id, 'Cancelled by user');
-      if (response.success) {
+      if (response.data) {
         setOrder(response.data);
         alert('Order cancelled successfully');
       } else {
@@ -297,7 +297,7 @@ export default function OrderTrackingPage() {
                     try {
                       // Build a minimal reorder payload: templateId + ingredientIds
                       const allItemsRes = await bowlService.getAllItems();
-                      const allItems = allItemsRes.success ? (allItemsRes.data || []) : [];
+                      const allItems = (allItemsRes.data || []);
                       const ingredientIds: string[] = [];
                       for (const b of bowls) {
                         const items = allItems.filter((it: any) => it.bowlId === b.id);

@@ -1,13 +1,28 @@
 import apiClient from './api.config';
-import { ApiResponse, Store, StoreRequest } from '@/types/api.types';
+import { ApiResponse, Store, StoreRequest, PagedResponse } from '@/types/api.types';
 
 class StoreService {
   /**
    * Get all stores
    */
-  async getAll(): Promise<ApiResponse<Store[]>> {
-    const response = await apiClient.get<ApiResponse<Store[]>>('/api/stores/getall');
-    return response.data;
+  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Store> | Store[]>> {
+    const response = await apiClient.get<ApiResponse<any>>('/api/stores/getall', { params });
+    const res = response.data as ApiResponse<any>;
+    // If backend returns paged, keep as-is; if returns array, wrap in synthetic page
+    if (Array.isArray(res.data)) {
+      const arr = res.data as Store[];
+      const synthetic: PagedResponse<Store> = {
+        content: arr,
+        page: 0,
+        size: arr.length,
+        totalElements: arr.length,
+        totalPages: 1,
+        first: true,
+        last: true,
+      };
+      return { ...res, data: synthetic } as ApiResponse<PagedResponse<Store>>;
+    }
+    return res as ApiResponse<PagedResponse<Store>>;
   }
 
   /**

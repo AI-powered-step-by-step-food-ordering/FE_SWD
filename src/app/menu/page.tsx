@@ -38,15 +38,15 @@ export default function MenuPage() {
     try {
       setLoading(true);
       const [templatesRes, categoriesRes] = await Promise.all([
-        bowlTemplateService.getAll(),
-        categoryService.getAll()
+        bowlTemplateService.getAll({ page: 0, size: 100 }),
+        categoryService.getAll({ page: 0, size: 200 })
       ]);
 
-      if (templatesRes.success) {
-        setTemplates(templatesRes.data);
+      if (templatesRes.data) {
+        setTemplates((templatesRes.data.content || []) as any);
       }
-      if (categoriesRes.success) {
-        setCategories(categoriesRes.data);
+      if (categoriesRes.data) {
+        setCategories(((categoriesRes.data as any).content || categoriesRes.data) as any);
       }
     } catch (err) {
       setError('Failed to load menu data');
@@ -172,7 +172,7 @@ export default function MenuPage() {
       const quantity = step.defaultQty || 0;
       const res = await bowlService.createItem({
         bowlId,
-        ingredientId: ingredient.id,
+        ingredientId: ingredient.id as string,
         quantity,
         unitPrice: ingredient.unitPrice
       });
@@ -183,7 +183,7 @@ export default function MenuPage() {
 
       setStepSelections(prev => ({
         ...prev,
-        [key]: { ingredientIds: [...existing, ingredient.id] }
+        [key]: { ingredientIds: [...existing, ingredient.id as string] }
       }));
       if (orderId) {
         try { await orderService.recalculate(orderId); } catch {}
@@ -386,9 +386,9 @@ export default function MenuPage() {
                 <p className="text-gray-600 mb-4">{template.description}</p>
                 <div className="flex items-center justify-between">
                   <span className={`px-3 py-1 rounded-full text-sm ${
-                    template.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    template.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                   }`}>
-                    {template.isActive ? 'Available' : 'Unavailable'}
+                    {template.active ? 'Available' : 'Unavailable'}
                   </span>
                   <button className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors">
                     Customize
