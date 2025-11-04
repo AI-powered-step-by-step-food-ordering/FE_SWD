@@ -1,5 +1,5 @@
 import apiClient from './api.config';
-import { ApiResponse, Ingredient, IngredientRequest, PagedResponse } from '@/types/api';
+import { ApiResponse, Ingredient, IngredientRequest, PagedResponse } from '@/types/api.types';
 
 class IngredientService {
   /**
