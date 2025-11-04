@@ -63,6 +63,26 @@ class BowlTemplateService {
   }
 
   /**
+   * Soft delete bowl template (Admin only)
+   */
+  async softDelete(id: string): Promise<ApiResponse<Record<string, never>>> {
+    const response = await apiClient.put<ApiResponse<Record<string, never>>>(
+      `/api/bowl_templates/soft-delete/${id}`
+    );
+    return response.data;
+  }
+
+  /**
+   * Restore soft-deleted bowl template (Admin only)
+   */
+  async restore(id: string): Promise<ApiResponse<BowlTemplate>> {
+    const response = await apiClient.put<ApiResponse<BowlTemplate>>(
+      `/api/bowl_templates/restore/${id}`
+    );
+    return response.data;
+  }
+
+  /**
    * Get active templates only
    */
   async getActiveTemplates(): Promise<BowlTemplate[]> {

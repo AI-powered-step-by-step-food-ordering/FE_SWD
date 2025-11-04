@@ -3,11 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import type { Ingredient, Category } from '@/types/api.types';
 import ingredientService from '@/services/ingredient.service';
-import AddIngredientForm from './AddIngredientForm';
+import categoryService from '@/services/category.service';
+// import AddIngredientForm from './AddIngredientForm';
 import IngredientList from './IngredientList';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import AdminSearchBar from '@/components/admin/AdminSearchBar';
 import Pagination from '@/components/admin/Pagination';
+import EditIngredientModal from './EditIngredientModal';
+import AddIngredientModal from './AddIngredientModal';
 
 type Props = {
   initialIngredients?: Ingredient[];
@@ -20,6 +23,7 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
 
   // State for backend pagination
   const [ingredients, setIngredients] = useState<Ingredient[]>(initialIngredients || []);
+  const [categories, setCategories] = useState<Category[]>(Array.isArray(initialCategories) ? initialCategories : []);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
@@ -29,6 +33,9 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [useLegacy, setUseLegacy] = useState(false);
+  const [editing, setEditing] = useState<Ingredient | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   // Load ingredients with backend pagination
   const loadIngredients = async () => {
@@ -85,6 +92,23 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
   useEffect(() => {
     loadIngredients();
   }, [page, pageSize, search, sortField, sortDirection]);
+
+  // Ensure categories are loaded and normalized
+  useEffect(() => {
+    const ensureCategories = async () => {
+      const list = Array.isArray(categories) ? categories : [];
+      if (list.length > 0) return;
+      try {
+        const resp = await categoryService.getAll({ page: 0, size: 500, sortDir: 'asc', sortBy: 'name' } as any);
+        const content = resp?.data?.content || [];
+        setCategories(content.filter((c) => c.isActive));
+      } catch (err) {
+        console.error('Failed to load categories:', err);
+        setCategories([]);
+      }
+    };
+    ensureCategories();
+  }, []);
 
   // Handle search
   const handleSearch = (searchTerm: string) => {
@@ -152,7 +176,13 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
         </div>
 
         <div className="flex items-center gap-4">
-          <AddIngredientForm onAdd={addIngredient} />
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white transition-colors hover:bg-green-700"
+          >
+            <i className="bx bx-plus text-[20px]"></i>
+            Add Ingredient
+          </button>
         </div>
       </div>
 
@@ -191,7 +221,11 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
 
       {/* Ingredients List */}
       {!loading && (
-        <IngredientList items={ingredients} onDelete={deleteIngredient} onUpdate={updateIngredient} />
+        <IngredientList
+          items={ingredients}
+          onDelete={deleteIngredient}
+          onUpdate={(ing) => { setEditing(ing); setShowEditModal(true); }}
+        />
       )}
 
       {/* Pagination */}
@@ -205,6 +239,28 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
             onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
           />
         </div>
+      )}
+
+      {showEditModal && (
+        <EditIngredientModal
+          ingredient={editing}
+          categories={Array.isArray(categories) ? categories : []}
+          onClose={() => { setShowEditModal(false); setEditing(null); }}
+          onSaved={(saved) => {
+            setIngredients((prev) => prev.map((i) => (i.id === saved.id ? saved : i)));
+          }}
+        />
+      )}
+
+      {showAddModal && (
+        <AddIngredientModal
+          categories={Array.isArray(categories) ? categories : []}
+          onClose={() => setShowAddModal(false)}
+          onSaved={(created) => {
+            addIngredient(created);
+            setShowAddModal(false);
+          }}
+        />
       )}
     </div>
   );

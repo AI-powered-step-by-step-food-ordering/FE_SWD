@@ -35,7 +35,7 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
   const [showTemplateModal, setShowTemplateModal] = useState<boolean>(false);
   const [isEditTemplate, setIsEditTemplate] = useState<boolean>(false);
   const [selectedTemplate, setSelectedTemplate] = useState<BowlTemplate | null>(null);
-  const [templateForm, setTemplateForm] = useState<BowlTemplateRequest>({ name: '', description: '', isActive: true });
+  const [templateForm, setTemplateForm] = useState<BowlTemplateRequest>({ name: '', description: '', active: true });
 
   // Steps management
   const [showStepsModal, setShowStepsModal] = useState<boolean>(false);
@@ -58,7 +58,7 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
       try {
         setLoading(true);
         const res = await bowlTemplateService.getAll();
-        const tplArr = Array.isArray(res.data) ? res.data : ((res as any)?.data?.content ?? []);
+        const tplArr = Array.isArray(res?.data) ? res.data : (res?.data?.content ?? []);
         setTemplates(tplArr);
         if (!initialCategories || initialCategories.length === 0) {
           const catRes = await categoryService.getAll();
@@ -76,13 +76,18 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
     load();
   }, []);
 
-  const getIsActive = (t: BowlTemplate) => (t.isActive ?? t.active) === true;
+  const getIsActive = (t: BowlTemplate | (BowlTemplate & { status?: string })) => {
+    if (typeof (t as any).active === 'boolean') return (t as any).active;
+    if (typeof (t as any).isActive === 'boolean') return (t as any).isActive;
+    if (typeof (t as any).status === 'string') return (t as any).status === 'ACTIVE';
+    return true;
+  };
 
   const filteredTemplates = useMemo(() => {
     const q = search.trim().toLowerCase();
     return templates
-      .filter((t) => (showInactive ? !getIsActive(t) : getIsActive(t)))
       .filter((t) => {
+        if (!showInactive && !getIsActive(t)) return false;
         if (!q) return true;
         const name = t.name?.toLowerCase() || '';
         const desc = t.description?.toLowerCase() || '';
@@ -95,7 +100,7 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
   const pagedTemplates = filteredTemplates.slice(startIndex, startIndex + pageSize);
 
   const resetTemplateForm = () => {
-    setTemplateForm({ name: '', description: '', isActive: true });
+    setTemplateForm({ name: '', description: '', active: true });
     setSelectedTemplate(null);
     setIsEditTemplate(false);
   };
@@ -103,7 +108,7 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
   const openCreateTemplate = () => { resetTemplateForm(); setShowTemplateModal(true); };
   const openEditTemplate = (t: BowlTemplate) => {
     setSelectedTemplate(t);
-    setTemplateForm({ name: t.name || '', description: t.description || '', isActive: getIsActive(t) });
+    setTemplateForm({ name: t.name || '', description: t.description || '', active: getIsActive(t) });
     setIsEditTemplate(true);
     setShowTemplateModal(true);
   };
@@ -114,15 +119,16 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
       const payload: BowlTemplateRequest = {
         name: templateForm.name,
         description: templateForm.description || '',
-        isActive: !!templateForm.isActive,
-        active: !!templateForm.isActive,
+        active: templateForm.active ?? templateForm.isActive ?? true,
+        isActive: templateForm.active ?? templateForm.isActive ?? true,
       };
       if (isEditTemplate && selectedTemplate?.id) {
         const res = await bowlTemplateService.update(selectedTemplate.id, payload);
         if (res.success) {
           toast.success('Cập nhật bowl template thành công');
           const all = await bowlTemplateService.getAll();
-          setTemplates(all.data || []);
+          const tplArr = Array.isArray(all?.data) ? all.data : (all?.data?.content ?? []);
+          setTemplates(tplArr);
           setShowTemplateModal(false);
           resetTemplateForm();
         } else { toast.error(res.message || 'Cập nhật thất bại'); }
@@ -131,7 +137,8 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
         if (res.success) {
           toast.success('Tạo bowl template thành công');
           const all = await bowlTemplateService.getAll();
-          setTemplates(all.data || []);
+          const tplArr = Array.isArray(all?.data) ? all.data : (all?.data?.content ?? []);
+          setTemplates(tplArr);
           setShowTemplateModal(false);
           resetTemplateForm();
         } else { toast.error(res.message || 'Tạo mới thất bại'); }
@@ -143,18 +150,19 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
   };
 
   const handleDeleteTemplate = async (t: BowlTemplate) => {
-    const ok = confirm(`Xóa bowl template "${t.name}"?`);
+    const ok = confirm(`Vô hiệu hóa bowl template "${t.name}"?`);
     if (!ok) return;
     try {
-      const res = await bowlTemplateService.delete(t.id);
+      const res = await bowlTemplateService.softDelete(t.id);
       if (res.success) {
-        toast.success('Xóa bowl template thành công');
+        toast.success('Đã vô hiệu hóa bowl template');
         const all = await bowlTemplateService.getAll();
-        setTemplates(all.data || []);
-      } else { toast.error(res.message || 'Xóa thất bại'); }
+        const tplArr = Array.isArray(all?.data) ? all.data : (all?.data?.content ?? []);
+        setTemplates(tplArr);
+      } else { toast.error(res.message || 'Vô hiệu hóa thất bại'); }
     } catch (err) {
-      console.error('Delete template error', err);
-      toast.error('Xóa bowl template thất bại');
+      console.error('Soft delete (deactivate) template error', err);
+      toast.error('Vô hiệu hóa bowl template thất bại');
     }
   };
 
@@ -219,9 +227,13 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
     }
   };
 
-  const getStatusBadge = (active: boolean) => (
-    <span className={`rounded-full px-2 py-1 text-xs font-semibold ${active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{active ? 'Active' : 'Inactive'}</span>
-  );
+  const getStatusBadge = (t: BowlTemplate) => {
+    const active = getIsActive(t);
+    const cls = active
+      ? 'inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800'
+      : 'inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700';
+    return <span className={cls}>{active ? 'Active' : 'Inactive'}</span>;
+  };
 
   return (
     <div className="space-y-6">
@@ -237,13 +249,10 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
 
       <div className="flex items-center justify-between">
         <AdminSearchBar placeholder="Search templates..." value={search} onChange={setSearch} />
-        <div className="flex items-center gap-2">
-          <span className={`text-sm ${!showInactive ? 'font-medium text-green-600' : 'text-gray-500'}`}>Active</span>
-          <button onClick={() => setShowInactive(!showInactive)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showInactive ? 'bg-red-600' : 'bg-green-600'}`}> 
-            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showInactive ? 'translate-x-6' : 'translate-x-1'}`} />
-          </button>
-          <span className={`text-sm ${showInactive ? 'font-medium text-red-600' : 'text-gray-500'}`}>Inactive</span>
-        </div>
+        <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" checked={showInactive} onChange={(e) => { setShowInactive(e.target.checked); setPage(1); }} />
+          Show inactive
+        </label>
       </div>
 
       <div className="overflow-hidden rounded-lg bg-white shadow-sm">
@@ -263,7 +272,6 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
                   <tr key={idx}>
                     <td className="px-6 py-4"><div className="h-4 w-40 bg-gray-200 animate-pulse rounded" /></td>
                     <td className="px-6 py-4"><div className="h-4 w-64 bg-gray-200 animate-pulse rounded" /></td>
-                    <td className="px-6 py-4"><div className="h-5 w-20 bg-gray-200 animate-pulse rounded" /></td>
                     <td className="px-6 py-4 text-right"><div className="flex justify-end gap-2"><div className="h-8 w-24 bg-gray-200 animate-pulse rounded" /><div className="h-8 w-36 bg-gray-200 animate-pulse rounded" /></div></td>
                   </tr>
                 ))
@@ -282,7 +290,7 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
                   <tr key={t.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4"><div className="text-sm font-medium text-gray-900">{t.name}</div></td>
                     <td className="px-6 py-4"><div className="text-sm text-gray-700">{t.description}</div></td>
-                    <td className="px-6 py-4">{getStatusBadge(getIsActive(t))}</td>
+                    <td className="px-6 py-4"><div className="text-sm">{getStatusBadge(t)}</div></td>
                     <td className="px-6 py-4 text-right text-sm font-medium">
                       <button onClick={() => openEditTemplate(t)} className="mr-4 text-blue-600 hover:text-blue-900">Edit</button>
                       <button onClick={() => openStepsModal(t)} className="mr-4 text-purple-600 hover:text-purple-900">Steps</button>
@@ -316,10 +324,12 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
                     <textarea value={templateForm.description || ''} onChange={(e) => setTemplateForm({ ...templateForm, description: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`text-sm ${templateForm.isActive ? 'font-medium text-green-600' : 'text-gray-500'}`}>Active</span>
-                    <button onClick={() => setTemplateForm({ ...templateForm, isActive: !templateForm.isActive })} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${templateForm.isActive ? 'bg-green-600' : 'bg-red-600'}`}> 
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${templateForm.isActive ? 'translate-x-6' : 'translate-x-1'}`} />
-                    </button>
+                    <label className="text-sm font-medium text-gray-700">Active</label>
+                    <input
+                      type="checkbox"
+                      checked={(templateForm.active ?? templateForm.isActive ?? true) === true}
+                      onChange={(e) => setTemplateForm({ ...templateForm, active: e.target.checked, isActive: e.target.checked })}
+                    />
                   </div>
                 </div>
               </div>

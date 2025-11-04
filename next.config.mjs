@@ -27,12 +27,17 @@ const nextConfig = {
         hostname: "firebasestorage.googleapis.com",
         port: "",
       },
-      // Added for external demo/example images
+      {
+        protocol: "https",
+        hostname: "img.buzzfeed.com",
+        port: "",
+      },
       {
         protocol: "https",
         hostname: "example.com",
         port: "",
       },
+      // Added for external demo/example images
     ],
   },
 };
