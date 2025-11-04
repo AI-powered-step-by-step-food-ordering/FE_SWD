@@ -219,6 +219,10 @@ export interface Order {
   note?: string; // Only in request
   createdAt?: string; // ZonedDateTime from backend
   updatedAt?: string; // Not in backend DTO but kept for compatibility
+  // New enriched fields from backend admin response
+  userFullName?: string;
+  user?: User;
+  bowls?: Bowl[];
 }
 
 export interface OrderRequest {
@@ -240,6 +244,16 @@ export interface Bowl {
   name: string;
   instruction: string;
   linePrice: number;
+  // Enriched fields
+  quantity?: number;
+  totalPrice?: number;
+  items?: BowlItem[];
+  template?: BowlTemplate & {
+    imageUrl?: string;
+    createdAt?: string;
+    // steps may be null in admin response
+    steps?: TemplateStep[] | null;
+  };
 }
 
 export interface BowlRequest {
@@ -254,6 +268,8 @@ export interface BowlItem {
   id: string;
   bowlId: string;
   ingredientId: string;
+  // Embedded ingredient from backend admin/order response
+  ingredient?: Ingredient;
   quantity: number;
   unitPrice: number;
 }
@@ -355,6 +371,35 @@ export enum PaymentMethod {
   WALLET = 'WALLET',
   TRANSFER = 'TRANSFER',
   ZALOPAY = 'ZALOPAY',
+}
+
+// Pagination Types
+export interface PageRequest {
+  page?: number;
+  size?: number;
+  sort?: string;
+  search?: string;
+}
+
+export interface PageResponse<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  size: number;
+  number: number;
+  first: boolean;
+  last: boolean;
+  numberOfElements: number;
+  empty: boolean;
+}
+
+export interface PaginatedApiResponse<T> {
+  success: boolean;
+  code: number;
+  message: string;
+  data: PageResponse<T>;
+  errorCode?: string;
+  timestamp: string;
 }
 
 

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
-import apiClient from '@/services/api.config';
 import userService from '@/services/user.service';
 import type { User, UserCreateRequest, UserUpdateRequest } from '@/types/api.types';
 import { toast } from 'react-toastify';
@@ -20,6 +19,11 @@ export default function UsersPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [sortField, setSortField] = useState('fullName');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [totalElements, setTotalElements] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [useLegacy, setUseLegacy] = useState(false);
   const [formData, setFormData] = useState<UserCreateRequest>({
     fullName: '',
     email: '',
@@ -31,19 +35,82 @@ export default function UsersPage() {
 
   useEffect(() => {
     loadUsers();
-  }, [showInactive]);
+  }, [showInactive, page, pageSize, search, sortField, sortDirection, useLegacy]);
 
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const response = showInactive 
-        ? await userService.getInactive()
-        : await apiClient.get<{ data: User[] }>('/api/users/getall');
-      
+
+      const hasSearch = search.trim().length > 0;
+      const sortParam = `${sortField},${sortDirection}`;
+
+      // When searching, switch to legacy fetch and filter client-side
+      if (hasSearch) {
+        setUseLegacy(true);
+        const response = await userService.getAllLegacy();
+        const allUsers = response.data || [];
+
+        const q = search.trim().toLowerCase();
+        const matchesQuery = (u: any) => {
+          const fields = [
+            u.fullName,
+            u.email,
+            u.phone,
+            u.role,
+            u.status,
+            u.goalCode,
+          ];
+          return fields.some((f) => String(f ?? '').toLowerCase().includes(q));
+        };
+
+        // Apply inactive/active filter similar to server endpoints
+        const filteredByStatus = showInactive
+          ? allUsers.filter((u: any) => u.status && u.status !== 'ACTIVE')
+          : allUsers.filter((u: any) => u.status === 'ACTIVE');
+
+        const filtered = filteredByStatus.filter(matchesQuery);
+
+        // Client-side sort
+        const [field, direction] = sortParam.split(',');
+        const sorted = [...filtered].sort((a: any, b: any) => {
+          const av = a[field as keyof typeof a];
+          const bv = b[field as keyof typeof b];
+          const aVal = av === undefined || av === null ? '' : String(av).toLowerCase();
+          const bVal = bv === undefined || bv === null ? '' : String(bv).toLowerCase();
+          if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+          if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+          return 0;
+        });
+
+        // Client-side paginate
+        const startIndex = (page - 1) * pageSize;
+        const paged = sorted.slice(startIndex, startIndex + pageSize);
+        setUsers(paged);
+        setTotalElements(sorted.length);
+        setTotalPages(Math.ceil(sorted.length / pageSize));
+        return;
+      }
+
+      // Not searching: use paginated endpoints; do not pass server-side search
+      setUseLegacy(false);
       if (showInactive) {
-        setUsers(response.data || []);
+        const response = await userService.getInactive({
+          page: page - 1,
+          size: pageSize,
+          sort: sortParam,
+        });
+        setUsers(response.data.content || []);
+        setTotalElements(response.data.totalElements || 0);
+        setTotalPages(response.data.totalPages || 0);
       } else {
-        setUsers(response.data?.data || []);
+        const response = await userService.getAll({
+          page: page - 1,
+          size: pageSize,
+          sort: sortParam,
+        });
+        setUsers(response.data.content || []);
+        setTotalElements(response.data.totalElements || 0);
+        setTotalPages(response.data.totalPages || 0);
       }
     } catch (error) {
       console.error('Failed to load users:', error);
@@ -51,6 +118,24 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSearch = (value: string) => {
+    setSearch(value);
+    setPage(1); // Reset to first page when searching
+  };
+
+  const handleSort = (field: string, direction?: 'asc' | 'desc') => {
+    setSortField(field);
+    setSortDirection(direction || (sortField === field && sortDirection === 'asc' ? 'desc' : 'asc'));
+    setPage(1); // Reset to first page when sorting
+  };
+
+  const getSortIcon = (field: string) => {
+    if (sortField !== field) return <i className="bx bx-sort" aria-hidden="true"></i>;
+    return sortDirection === 'asc'
+      ? <i className="bx bx-sort-up" aria-hidden="true"></i>
+      : <i className="bx bx-sort-down" aria-hidden="true"></i>;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -68,7 +153,7 @@ export default function UsersPage() {
           address: formData.address,
           phone: formData.phone,
         };
-        await apiClient.put(`/api/users/update/${editingUser.id}`, updateData);
+        await userService.update(editingUser.id, updateData);
         toast.success('User updated successfully');
       } else {
         // For creation, use UserCreateRequest
@@ -76,13 +161,13 @@ export default function UsersPage() {
           toast.error('Passwords do not match');
           return;
         }
-        await apiClient.post('/api/users/create', formData);
+        await userService.create(formData);
         toast.success('User created successfully');
       }
       
       setShowModal(false);
       resetForm();
-      loadUsers();
+      loadUsers(); // Reload data to maintain pagination
     } catch (error) {
       console.error('Failed to save user:', error);
       toast.error('Failed to save user');
@@ -95,7 +180,7 @@ export default function UsersPage() {
     try {
       await userService.softDelete(id);
       toast.success('User soft deleted successfully');
-      loadUsers();
+      loadUsers(); // Reload data to maintain pagination
     } catch (error) {
       console.error('Failed to soft delete user:', error);
       toast.error('Failed to soft delete user');
@@ -123,7 +208,6 @@ export default function UsersPage() {
       password: '',
       passwordConfirm: '',
       goalCode: user.goalCode || 'WEIGHT_LOSS',
-      role: user.role as 'ADMIN' | 'USER',
       imageUrl: user.imageUrl || '',
       dateOfBirth: user.dateOfBirth || '',
       address: user.address || '',
@@ -153,18 +237,7 @@ export default function UsersPage() {
     resetForm();
   };
 
-  const filteredUsers = users.filter((u) => {
-    const q = search.trim().toLowerCase();
-    if (!q) return true;
-    const fullName = u.fullName?.toLowerCase() || '';
-    const email = u.email?.toLowerCase() || '';
-    const role = (u.role || '').toLowerCase();
-    const status = (u.status || '').toLowerCase();
-    return fullName.includes(q) || email.includes(q) || role.includes(q) || status.includes(q);
-  });
 
-  const startIndex = (page - 1) * pageSize;
-  const pagedUsers = filteredUsers.slice(startIndex, startIndex + pageSize);
 
   return (
     <AdminLayout title="Users Management">
@@ -176,7 +249,27 @@ export default function UsersPage() {
             <p className="text-sm text-gray-600 mt-1">Manage all users in the system</p>
           </div>
           <div className="flex items-center gap-4">
-            <AdminSearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Tìm người dùng..." />
+            <AdminSearchBar value={search} onChange={handleSearch} placeholder="Tìm người dùng..." />
+            
+            {/* Sort Dropdown */}
+            <select
+              value={`${sortField},${sortDirection}`}
+              onChange={(e) => {
+                const [field, direction] = e.target.value.split(',');
+                handleSort(field, direction as 'asc' | 'desc');
+              }}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="fullName,asc">Name (A-Z)</option>
+              <option value="fullName,desc">Name (Z-A)</option>
+              <option value="email,asc">Email (A-Z)</option>
+              <option value="email,desc">Email (Z-A)</option>
+              <option value="role,asc">Role (A-Z)</option>
+              <option value="role,desc">Role (Z-A)</option>
+              <option value="status,asc">Status (A-Z)</option>
+              <option value="status,desc">Status (Z-A)</option>
+            </select>
+            
             {/* Toggle for Active/Inactive Users */}
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-gray-700">
@@ -202,9 +295,7 @@ export default function UsersPage() {
               }}
               className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
             >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
+            <i className="bx bx-plus text-[20px]" aria-hidden="true"></i>
             Add User
           </button>
           </div>
@@ -246,14 +337,14 @@ export default function UsersPage() {
                       Loading...
                     </td>
                   </tr>
-                ) : filteredUsers.length === 0 ? (
+                ) : users.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                       No users found
                     </td>
                   </tr>
                 ) : (
-                  pagedUsers.map((user) => (
+                  users.map((user) => (
                     <tr key={user.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">{user.fullName}</div>
@@ -320,7 +411,7 @@ export default function UsersPage() {
         <Pagination
           page={page}
           pageSize={pageSize}
-          total={filteredUsers.length}
+          total={totalElements}
           onPageChange={(p) => setPage(p)}
           onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
         />
@@ -412,21 +503,7 @@ export default function UsersPage() {
                       </select>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Role *
-                      </label>
-                      <select
-                        required
-                        value={formData.role}
-                        onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                        disabled={editingUser} // Role cannot be changed during edit
-                      >
-                        <option value="USER">User</option>
-                        <option value="ADMIN">Admin</option>
-                      </select>
-                    </div>
+                    {/* Role field removed from UI; defaults to USER on create */}
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">

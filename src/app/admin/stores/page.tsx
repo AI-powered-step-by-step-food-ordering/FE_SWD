@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Image from 'next/image';
+import ImageWithFallback from '@/components/shared/ImageWithFallback';
 import AdminLayout from '@/components/admin/AdminLayout';
 import dynamic from 'next/dynamic';
-import apiClient from '@/services/api.config';
+import storeService from '@/services/store.service';
 import { getFirebaseThumbnail } from '@/lib/firebase-storage';
-import type { Store, StoreRequest } from '@/types/api';
+import type { Store, StoreRequest } from '@/types/api.types';
 import { toast } from 'react-toastify';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import AdminSearchBar from '@/components/admin/AdminSearchBar';
@@ -18,18 +18,24 @@ const FirebaseImageUpload = dynamic(() => import('@/components/shared/FirebaseIm
 
 export default function StoresPage() {
   useRequireAdmin();
-  const [stores, setStores] = useState<Store[]>([]);
+  type UiStore = Store & { isActive?: boolean; openingHours?: string; imageUrl?: string };
+  type StoreForm = StoreRequest & { isActive: boolean; openingHours?: string; imageUrl?: string };
+  const [stores, setStores] = useState<UiStore[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [editingStore, setEditingStore] = useState<Store | null>(null);
-  const [search, setSearch] = useState('');
+  const [editingStore, setEditingStore] = useState<UiStore | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
-  const [formData, setFormData] = useState<StoreRequest>({
+  const [search, setSearch] = useState('');
+  const [sortField, setSortField] = useState<string>('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [totalElements, setTotalElements] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [useLegacy, setUseLegacy] = useState(false);
+  const [formData, setFormData] = useState<StoreForm>({
     name: '',
     address: '',
     phone: '',
-    email: '',
     isActive: true,
     openingHours: '',
     imageUrl: '',
@@ -37,13 +43,58 @@ export default function StoresPage() {
 
   useEffect(() => {
     loadStores();
-  }, []);
+  }, [page, pageSize, search, sortField, sortDirection]);
 
   const loadStores = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get<{ data: Store[] }>('/api/stores/getall');
-      setStores(response.data?.data || []);
+      const sortParam = sortField ? `${sortField},${sortDirection}` : 'name,asc';
+      const q = search.trim().toLowerCase();
+
+      // If searching, switch to legacy mode for client-side filtering
+      if (q && !useLegacy) {
+        setUseLegacy(true);
+        setLoading(false);
+        return;
+      }
+      if (!q && useLegacy) {
+        setUseLegacy(false);
+      }
+      
+      if (useLegacy && q) {
+        const legacy = await storeService.getAllLegacy();
+        if (legacy.success && legacy.data) {
+          let list = legacy.data;
+          // basic search across common fields
+          list = list.filter((s) => (
+            (s.name?.toLowerCase().includes(q)) ||
+            (s.address?.toLowerCase().includes(q)) ||
+            (s.phone?.toLowerCase().includes(q))
+          ));
+          const total = list.length;
+          const startIndex = Math.max(0, (page - 1) * Math.max(1, pageSize));
+          const paged = list.slice(startIndex, startIndex + pageSize);
+          setStores(paged);
+          setTotalElements(total);
+          setTotalPages(Math.max(1, Math.ceil(total / Math.max(1, pageSize))));
+        } else {
+          setStores([]);
+          setTotalElements(0);
+          setTotalPages(0);
+        }
+      } else {
+        const response = await storeService.getAll({
+          page: page - 1, // Backend uses 0-based indexing
+          size: pageSize,
+          sort: sortParam
+        });
+        
+        if (response.success && response.data) {
+          setStores(response.data.content || []);
+          setTotalElements(response.data.totalElements);
+          setTotalPages(response.data.totalPages);
+        }
+      }
     } catch (error) {
       console.error('Failed to load stores:', error);
       toast.error('Failed to load stores');
@@ -52,35 +103,67 @@ export default function StoresPage() {
     }
   };
 
+  // Handle search
+  const handleSearch = (searchTerm: string) => {
+    setSearch(searchTerm);
+    setPage(1); // Reset to first page when searching
+  };
+
+  // Handle sorting
+  const handleSort = (field: string, direction?: 'asc' | 'desc') => {
+    if (direction) {
+      setSortField(field);
+      setSortDirection(direction);
+    } else if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+    setPage(1); // Reset to first page when sorting
+  };
+
+  // Get sort icon
+  const getSortIcon = (field: string) => {
+    if (sortField !== field) return <i className="bx bx-sort" aria-hidden="true"></i>;
+    return sortDirection === 'asc'
+      ? <i className="bx bx-sort-up" aria-hidden="true"></i>
+      : <i className="bx bx-sort-down" aria-hidden="true"></i>;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
+      const payload: StoreRequest = {
+        name: formData.name,
+        address: formData.address,
+        phone: formData.phone,
+      };
       if (editingStore) {
-        await apiClient.put(`/api/stores/update/${editingStore.id}`, formData);
+        await storeService.update(editingStore.id, payload);
         toast.success('Store updated successfully');
       } else {
-        await apiClient.post('/api/stores/create', formData);
+        await storeService.create(payload);
         toast.success('Store created successfully');
       }
       
       setShowModal(false);
       resetForm();
-      loadStores();
+      loadStores(); // Reload data to maintain pagination
     } catch (error) {
       console.error('Failed to save store:', error);
       toast.error('Failed to save store');
     }
   };
 
-  const handleEdit = (store: Store) => {
+  const handleEdit = (store: UiStore) => {
     setEditingStore(store);
     setFormData({
       name: store.name,
       address: store.address,
       phone: store.phone,
-      email: store.email,
-      isActive: store.isActive,
+      isActive: store.isActive ?? true,
       openingHours: store.openingHours || '',
       imageUrl: store.imageUrl || '',
     });
@@ -93,7 +176,6 @@ export default function StoresPage() {
       name: '',
       address: '',
       phone: '',
-      email: '',
       isActive: true,
       openingHours: '',
       imageUrl: '',
@@ -105,19 +187,6 @@ export default function StoresPage() {
     resetForm();
   };
 
-  const filteredStores = stores.filter((s) => {
-    const q = search.trim().toLowerCase();
-    if (!q) return true;
-    const name = s.name?.toLowerCase() || '';
-    const address = s.address?.toLowerCase() || '';
-    const email = s.email?.toLowerCase() || '';
-    const phone = s.phone?.toLowerCase() || '';
-    return name.includes(q) || address.includes(q) || email.includes(q) || phone.includes(q);
-  });
-
-  const startIndex = (page - 1) * pageSize;
-  const pagedStores = filteredStores.slice(startIndex, startIndex + pageSize);
-
   return (
     <AdminLayout title="Stores Management">
       <div className="space-y-6">
@@ -128,7 +197,22 @@ export default function StoresPage() {
             <p className="text-sm text-gray-600 mt-1">Manage all stores in the system</p>
           </div>
           <div className="flex items-center gap-4">
-            <AdminSearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Tìm cửa hàng..." />
+            <select
+              value={`${sortField}-${sortDirection}`}
+              onChange={(e) => {
+                const [field, direction] = e.target.value.split('-');
+                handleSort(field, direction as 'asc' | 'desc');
+              }}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="name-asc">Name (A-Z)</option>
+              <option value="name-desc">Name (Z-A)</option>
+              <option value="address-asc">Address (A-Z)</option>
+              <option value="address-desc">Address (Z-A)</option>
+              <option value="isActive-desc">Active First</option>
+              <option value="isActive-asc">Inactive First</option>
+            </select>
+            <AdminSearchBar value={search} onChange={handleSearch} placeholder="Tìm cửa hàng..." />
           <button
             onClick={() => {
               resetForm();
@@ -136,9 +220,7 @@ export default function StoresPage() {
             }}
             className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
+            <i className="bx bx-plus text-[20px]"></i>
             Add Store
           </button>
           </div>
@@ -150,23 +232,24 @@ export default function StoresPage() {
             <div className="col-span-full text-center py-12 text-gray-500">
               Loading...
             </div>
-          ) : filteredStores.length === 0 ? (
+          ) : stores.length === 0 ? (
             <div className="col-span-full text-center py-12 text-gray-500">
               No stores found
             </div>
           ) : (
-            pagedStores.map((store) => (
+            stores.map((store) => (
               <div key={store.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       {store.imageUrl ? (
                         <div className="mb-3">
-                          <Image
+                          <ImageWithFallback
                             src={getFirebaseThumbnail(store.imageUrl)}
                             alt={store.name}
                             width={200}
                             height={120}
                             className="w-full h-32 object-cover rounded-lg"
+                            fallbackSrc="/icon.svg"
                           />
                         </div>
                       ) : (
@@ -187,32 +270,19 @@ export default function StoresPage() {
 
                 <div className="space-y-3 mb-4">
                   <div className="flex items-start gap-2">
-                    <svg className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
+                    <i className="bx bx-map text-gray-400 text-[20px] mt-0.5 flex-shrink-0" aria-hidden="true"></i>
                     <p className="text-sm text-gray-600 flex-1">{store.address}</p>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                    </svg>
+                    <i className="bx bx-phone text-gray-400 text-[20px] flex-shrink-0" aria-hidden="true"></i>
                     <p className="text-sm text-gray-600">{store.phone}</p>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    <p className="text-sm text-gray-600">{store.email}</p>
-                  </div>
 
                   {store.openingHours && (
                     <div className="flex items-center gap-2">
-                      <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                      <i className="bx bx-time-five text-gray-400 text-[20px] flex-shrink-0" aria-hidden="true"></i>
                       <p className="text-sm text-gray-600">{store.openingHours}</p>
                     </div>
                   )}
@@ -233,7 +303,7 @@ export default function StoresPage() {
         <Pagination
           page={page}
           pageSize={pageSize}
-          total={filteredStores.length}
+          total={totalElements}
           onPageChange={(p) => setPage(p)}
           onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
         />
@@ -306,18 +376,7 @@ export default function StoresPage() {
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Email *
-                      </label>
-                      <input
-                        type="email"
-                        required
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                      />
-                    </div>
+                    
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">

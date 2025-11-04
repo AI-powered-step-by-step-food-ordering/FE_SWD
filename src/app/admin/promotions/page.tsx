@@ -3,23 +3,39 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import apiClient from '@/services/api.config';
-import type { Promotion, PromotionRequest } from '@/types/api';
+import { promotionService } from '@/services/promotion.service';
+import type { Promotion } from '@/types/api.types';
+import type { PromotionRequest as BackendPromotionRequest } from '@/types/api.types';
 import { toast } from 'react-toastify';
 import { formatVND } from '@/lib/format-number';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import AdminSearchBar from '@/components/admin/AdminSearchBar';
 import Pagination from '@/components/admin/Pagination';
 
+type PromotionForm = {
+  code: string;
+  name: string;
+  description: string;
+  discountType: 'PERCENTAGE' | 'FIXED';
+  discountValue: number;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+  usageLimit?: number;
+};
+
+type UiPromotion = Promotion & { description?: string };
+
 export default function PromotionsPage() {
   useRequireAdmin();
-  const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [promotions, setPromotions] = useState<UiPromotion[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
+  const [editingPromotion, setEditingPromotion] = useState<UiPromotion | null>(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
-  const [formData, setFormData] = useState<PromotionRequest>({
+  const [formData, setFormData] = useState<PromotionForm>({
     code: '',
     name: '',
     description: '',
@@ -35,11 +51,29 @@ export default function PromotionsPage() {
     loadPromotions();
   }, []);
 
+  // Convert HTML date (YYYY-MM-DD) to ISO OffsetDateTime string (UTC)
+  const toOffsetISOStart = (dateStr: string | undefined) => {
+    if (!dateStr) return undefined;
+    try {
+      return new Date(`${dateStr}T00:00:00`).toISOString();
+    } catch {
+      return undefined;
+    }
+  };
+  const toOffsetISOEnd = (dateStr: string | undefined) => {
+    if (!dateStr) return undefined;
+    try {
+      return new Date(`${dateStr}T23:59:59`).toISOString();
+    } catch {
+      return undefined;
+    }
+  };
+
   const loadPromotions = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get<{ data: Promotion[] }>('/api/promotions/getall');
-      setPromotions(response.data?.data || []);
+      const response = await promotionService.getAll();
+      setPromotions(response?.data || []);
     } catch (error) {
       console.error('Failed to load promotions:', error);
       toast.error('Failed to load promotions');
@@ -52,11 +86,26 @@ export default function PromotionsPage() {
     e.preventDefault();
     
     try {
+      // Map frontend form fields to backend PromotionRequest shape
+      const payload: BackendPromotionRequest = {
+        code: formData.code,
+        name: formData.name,
+        type: formData.discountType === 'PERCENTAGE' ? 'PERCENTAGE' : 'AMOUNT',
+        percentOff: formData.discountType === 'PERCENTAGE' ? Number(formData.discountValue || 0) : 0,
+        amountOff: formData.discountType === 'PERCENTAGE' ? 0 : Number(formData.discountValue || 0),
+        minOrderValue: 0, // default when not provided
+        startsAt: toOffsetISOStart(formData.startDate),
+        endsAt: toOffsetISOEnd(formData.endDate),
+        maxRedemptions: formData.usageLimit,
+        perOrderLimit: undefined,
+        isActive: formData.isActive,
+      };
+
       if (editingPromotion) {
-        await apiClient.put(`/api/promotions/update/${editingPromotion.id}`, formData);
+        await promotionService.update(editingPromotion.id, payload);
         toast.success('Promotion updated successfully');
       } else {
-        await apiClient.post('/api/promotions/create', formData);
+        await promotionService.create(payload);
         toast.success('Promotion created successfully');
       }
       
@@ -69,18 +118,18 @@ export default function PromotionsPage() {
     }
   };
 
-  const handleEdit = (promotion: Promotion) => {
+  const handleEdit = (promotion: UiPromotion) => {
     setEditingPromotion(promotion);
     setFormData({
       code: promotion.code,
       name: promotion.name,
-      description: promotion.description,
-      discountType: promotion.discountType,
-      discountValue: promotion.discountValue,
-      startDate: promotion.startDate?.split('T')[0] || '',
-      endDate: promotion.endDate?.split('T')[0] || '',
+      description: promotion.description || '',
+      discountType: promotion.type === 'PERCENTAGE' ? 'PERCENTAGE' : 'FIXED',
+      discountValue: promotion.type === 'PERCENTAGE' ? (promotion.percentOff ?? 0) : (promotion.amountOff ?? 0),
+      startDate: promotion.startsAt?.split('T')[0] || '',
+      endDate: promotion.endsAt?.split('T')[0] || '',
       isActive: promotion.isActive,
-      usageLimit: promotion.usageLimit,
+      usageLimit: promotion.maxRedemptions,
     });
     setShowModal(true);
   };
@@ -108,9 +157,11 @@ export default function PromotionsPage() {
   const isPromotionActive = (promotion: Promotion) => {
     if (!promotion.isActive) return false;
     const now = new Date();
-    const start = new Date(promotion.startDate);
-    const end = new Date(promotion.endDate);
-    return now >= start && now <= end;
+    const start = promotion.startsAt ? new Date(promotion.startsAt) : undefined;
+    const end = promotion.endsAt ? new Date(promotion.endsAt) : undefined;
+    if (start && now < start) return false;
+    if (end && now > end) return false;
+    return true;
   };
 
   const filteredPromotions = promotions.filter((p) => {
@@ -143,9 +194,7 @@ export default function PromotionsPage() {
             }}
             className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
+            <i className="bx bx-plus text-[20px]" aria-hidden="true"></i>
             Add Promotion
           </button>
           </div>
@@ -186,22 +235,22 @@ export default function PromotionsPage() {
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Discount:</span>
                     <span className="font-semibold text-green-600">
-                      {promotion.discountType === 'PERCENTAGE'
-                        ? `${promotion.discountValue}%`
-                        : formatVND(promotion.discountValue ?? 0)}
+                      {promotion.type === 'PERCENTAGE'
+                        ? `${promotion.percentOff ?? 0}%`
+                        : formatVND(promotion.amountOff ?? 0)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Period:</span>
                     <span className="font-medium text-gray-900 text-xs">
-                      {new Date(promotion.startDate).toLocaleDateString()} - {new Date(promotion.endDate).toLocaleDateString()}
+                      {(promotion.startsAt ? new Date(promotion.startsAt).toLocaleDateString() : '')} - {(promotion.endsAt ? new Date(promotion.endsAt).toLocaleDateString() : '')}
                     </span>
                   </div>
-                  {promotion.usageLimit && (
+                  {promotion.maxRedemptions && (
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Usage:</span>
                       <span className="font-medium text-gray-900">
-                        {promotion.usageCount || 0} / {promotion.usageLimit}
+                        {promotion.maxRedemptions}
                       </span>
                     </div>
                   )}
@@ -289,7 +338,7 @@ export default function PromotionsPage() {
                         <select
                           required
                           value={formData.discountType}
-                          onChange={(e) => setFormData({ ...formData, discountType: e.target.value })}
+                          onChange={(e) => setFormData({ ...formData, discountType: e.target.value as 'PERCENTAGE' | 'FIXED' })}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                         >
                           <option value="PERCENTAGE">Percentage</option>
@@ -306,8 +355,14 @@ export default function PromotionsPage() {
                           step="0.01"
                           min="0"
                           required
-                          value={formData.discountValue}
-                          onChange={(e) => setFormData({ ...formData, discountValue: parseFloat(e.target.value) })}
+                          value={Number.isFinite(formData.discountValue as unknown as number) ? (formData.discountValue as unknown as number) : ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormData({
+                              ...formData,
+                              discountValue: val === '' ? (Number.NaN as unknown as number) : parseFloat(val),
+                            });
+                          }}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                         />
                       </div>
