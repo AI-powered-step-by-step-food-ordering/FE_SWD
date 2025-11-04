@@ -52,14 +52,39 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
   });
   const [editingStep, setEditingStep] = useState<TemplateStep | null>(null);
 
-  // Load initial data (refresh to ensure fresh data)
+  // Load data; when showing inactive, merge in inactive results if backend separates them
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
+        // Always fetch the main list
         const res = await bowlTemplateService.getAll();
-        const tplArr = Array.isArray(res?.data) ? res.data : (res?.data?.content ?? []);
-        setTemplates(tplArr);
+        const baseArr = Array.isArray(res?.data) ? res.data : (res?.data?.content ?? []);
+
+        // If showInactive is enabled, try to fetch inactive ones and merge
+        if (showInactive) {
+          try {
+            const inactiveRes = await bowlTemplateService.getInactiveTemplates();
+            const inactiveRaw = inactiveRes?.data;
+            const inactiveArr = Array.isArray(inactiveRaw)
+              ? inactiveRaw
+              : (inactiveRaw as any)?.content ?? [];
+            // Merge by id, avoid duplicates
+            const merged = [...baseArr];
+            inactiveArr.forEach((itm: BowlTemplate) => {
+              if (!merged.some((m) => m.id === itm.id)) merged.push(itm);
+            });
+            setTemplates(merged);
+          } catch (inactiveErr) {
+            // If inactive endpoint not available, fall back to base list
+            console.warn('Inactive templates fetch failed or not available', inactiveErr);
+            setTemplates(baseArr);
+          }
+        } else {
+          setTemplates(baseArr);
+        }
+
+        // Categories load
         if (!initialCategories || initialCategories.length === 0) {
           const catRes = await categoryService.getAll();
           const catArr = Array.isArray(catRes.data) ? catRes.data : (catRes.data?.content ?? []);
@@ -74,7 +99,7 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
       }
     };
     load();
-  }, []);
+  }, [showInactive]);
 
   const getIsActive = (t: BowlTemplate | (BowlTemplate & { status?: string })) => {
     if (typeof (t as any).active === 'boolean') return (t as any).active;
@@ -127,8 +152,17 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
         if (res.success) {
           toast.success('Cập nhật bowl template thành công');
           const all = await bowlTemplateService.getAll();
-          const tplArr = Array.isArray(all?.data) ? all.data : (all?.data?.content ?? []);
-          setTemplates(tplArr);
+          const baseArr = Array.isArray(all?.data) ? all.data : (all?.data?.content ?? []);
+          if (showInactive) {
+            try {
+              const inactiveRes = await bowlTemplateService.getInactiveTemplates();
+              const inactiveRaw = inactiveRes?.data;
+              const inactiveArr = Array.isArray(inactiveRaw) ? inactiveRaw : (inactiveRaw as any)?.content ?? [];
+              const merged = [...baseArr];
+              inactiveArr.forEach((itm: BowlTemplate) => { if (!merged.some((m) => m.id === itm.id)) merged.push(itm); });
+              setTemplates(merged);
+            } catch { setTemplates(baseArr); }
+          } else { setTemplates(baseArr); }
           setShowTemplateModal(false);
           resetTemplateForm();
         } else { toast.error(res.message || 'Cập nhật thất bại'); }
@@ -137,8 +171,17 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
         if (res.success) {
           toast.success('Tạo bowl template thành công');
           const all = await bowlTemplateService.getAll();
-          const tplArr = Array.isArray(all?.data) ? all.data : (all?.data?.content ?? []);
-          setTemplates(tplArr);
+          const baseArr = Array.isArray(all?.data) ? all.data : (all?.data?.content ?? []);
+          if (showInactive) {
+            try {
+              const inactiveRes = await bowlTemplateService.getInactiveTemplates();
+              const inactiveRaw = inactiveRes?.data;
+              const inactiveArr = Array.isArray(inactiveRaw) ? inactiveRaw : (inactiveRaw as any)?.content ?? [];
+              const merged = [...baseArr];
+              inactiveArr.forEach((itm: BowlTemplate) => { if (!merged.some((m) => m.id === itm.id)) merged.push(itm); });
+              setTemplates(merged);
+            } catch { setTemplates(baseArr); }
+          } else { setTemplates(baseArr); }
           setShowTemplateModal(false);
           resetTemplateForm();
         } else { toast.error(res.message || 'Tạo mới thất bại'); }
@@ -157,8 +200,17 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
       if (res.success) {
         toast.success('Đã vô hiệu hóa bowl template');
         const all = await bowlTemplateService.getAll();
-        const tplArr = Array.isArray(all?.data) ? all.data : (all?.data?.content ?? []);
-        setTemplates(tplArr);
+        const baseArr = Array.isArray(all?.data) ? all.data : (all?.data?.content ?? []);
+        if (showInactive) {
+          try {
+            const inactiveRes = await bowlTemplateService.getInactiveTemplates();
+            const inactiveRaw = inactiveRes?.data;
+            const inactiveArr = Array.isArray(inactiveRaw) ? inactiveRaw : (inactiveRaw as any)?.content ?? [];
+            const merged = [...baseArr];
+            inactiveArr.forEach((itm: BowlTemplate) => { if (!merged.some((m) => m.id === itm.id)) merged.push(itm); });
+            setTemplates(merged);
+          } catch { setTemplates(baseArr); }
+        } else { setTemplates(baseArr); }
       } else { toast.error(res.message || 'Vô hiệu hóa thất bại'); }
     } catch (err) {
       console.error('Soft delete (deactivate) template error', err);

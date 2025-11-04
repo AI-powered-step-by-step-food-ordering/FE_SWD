@@ -91,6 +91,16 @@ class BowlTemplateService {
     return content.filter((template) => template.active === true);
   }
 
+  /**
+   * Get inactive templates only
+   */
+  async getInactiveTemplates(): Promise<ApiResponse<BowlTemplate[] | PagedResponse<BowlTemplate>>> {
+    const response = await apiClient.get<ApiResponse<BowlTemplate[] | PagedResponse<BowlTemplate>>>(
+      '/api/bowl_templates/inactive'
+    );
+    return response.data;
+  }
+
   // Template Steps Methods
   /**
    * Get all template steps
