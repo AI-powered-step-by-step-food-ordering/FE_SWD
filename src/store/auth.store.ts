@@ -19,6 +19,7 @@ export interface AuthUserState {
 interface AuthState {
   isAuthenticated: boolean;
   user: AuthUserState | null;
+  hasHydrated: boolean;
   setAuthenticated: (isAuth: boolean) => void;
   setUser: (user: AuthUserState | null) => void;
   hydrateFromCookies: () => void;
@@ -28,6 +29,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
   user: null,
+  hasHydrated: false,
   setAuthenticated: (isAuth) => set({ isAuthenticated: isAuth }),
   setUser: (user) => set({ user }),
   hydrateFromCookies: () => {
@@ -36,12 +38,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     const userCookie = getCookie('user');
     try {
       const user = userCookie ? JSON.parse(decodeURIComponent(userCookie)) : null;
-      set({ isAuthenticated: !!(isAuth && getCookie('accessToken')), user });
+      set({ isAuthenticated: !!(isAuth && getCookie('accessToken')), user, hasHydrated: true });
     } catch {
-      set({ isAuthenticated: false, user: null });
+      set({ isAuthenticated: false, user: null, hasHydrated: true });
     }
   },
-  clear: () => set({ isAuthenticated: false, user: null }),
+  clear: () => set({ isAuthenticated: false, user: null, hasHydrated: true }),
 }));
 
 

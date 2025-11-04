@@ -3,7 +3,7 @@ import { getCookie, setCookie, clearAuthCookies } from '@/lib/auth-utils';
 
 // Use environment variable when available (Next.js exposes NEXT_PUBLIC_* to the browser)
 // Fallback to empty string to avoid building URLs like "undefined/..."
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://cinezone.info:4458';
 
 // Create axios instance
 const apiClient: AxiosInstance = axios.create({

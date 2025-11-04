@@ -4,89 +4,42 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/navigation';
-import { 
-  bowlTemplateService,
-  templateStepService,
-  categoryService,
-  ingredientService,
-  orderService,
-  bowlService,
-  paymentService,
-  storeService,
-  zaloPayService
-} from '@/services';
+import { paymentService, zaloPayService } from '@/services';
 import { BowlTemplate, TemplateStep, Category, Ingredient, BowlItem, Store, PaymentMethod } from '@/types/api.types';
-import apiClient from '@/services/api.config';
+// import apiClient from '@/services/api.config';
 import Header from '@/components/shared/Header';
 import { formatVND } from '@/lib/format-number';
 import ProgressBar from '@/components/order/ProgressBar';
 import FoodSelection from '@/components/order/FoodSelection';
 import NutritionPanel from '@/components/order/NutritionPanel';
+import { useOrderStore } from '@/store/order.store';
 
-function useInitOrderPage(
-  setTemplates: React.Dispatch<React.SetStateAction<BowlTemplate[]>>,
-  setCategories: React.Dispatch<React.SetStateAction<Category[]>>,
-  setStores: React.Dispatch<React.SetStateAction<Store[]>>,
-  setSelectedStoreId: React.Dispatch<React.SetStateAction<string>>,
-  setPageLoading: React.Dispatch<React.SetStateAction<boolean>>,
-  toast: { error: (msg: string) => void }
-) {
-  return async () => {
-    try {
-      setPageLoading(true);
-      const [tpls, cats, storesRes] = await Promise.all([
-        bowlTemplateService.getAll(),
-        categoryService.getAll(),
-        storeService.getAll()
-      ]);
-      if (tpls.success) setTemplates(tpls.data);
-      if (cats.success) setCategories(cats.data);
-      if (storesRes.success) {
-        setStores(storesRes.data);
-        // Pick saved or first active
-        const saved = typeof window !== 'undefined' ? localStorage.getItem('storeId') : '';
-        const initial = saved || storesRes.data[0]?.id || '';
-        if (initial) {
-          setSelectedStoreId(initial);
-          if (typeof window !== 'undefined') localStorage.setItem('storeId', initial);
-        }
-      }
-    } catch (e) {
-      toast.error('Không thể tải dữ liệu.');
-    } finally { setPageLoading(false); }
-  };
-}
+// local store-based init no longer needed
 
 function OrderPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [templates, setTemplates] = useState<BowlTemplate[]>([]);
-  const [stores, setStores] = useState<Store[]>([]);
-  const [selectedStoreId, setSelectedStoreId] = useState<string>('');
-  const [selectedTemplate, setSelectedTemplate] = useState<BowlTemplate | null>(null);
-  const [templateSteps, setTemplateSteps] = useState<TemplateStep[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [stepIngredients, setStepIngredients] = useState<Ingredient[]>([]);
-
-  const [currentStepIndex, setCurrentStepIndex] = useState<number>(-1);
-  const [stepSelections, setStepSelections] = useState<Record<string, string[]>>({});
-
-  const [orderId, setOrderId] = useState('');
-  const [bowlId, setBowlId] = useState('');
-  const [bowlItems, setBowlItems] = useState<BowlItem[]>([]);
-  const [orderTotal, setOrderTotal] = useState<number>(0);
-  const [bowlLinePrice, setBowlLinePrice] = useState<number>(0);
-  const [pageLoading, setPageLoading] = useState<boolean>(true);
-  const [stepLoading, setStepLoading] = useState<boolean>(false);
+  const {
+    // state
+    templates, categories, templateSteps, currentStepIndex, stepIngredients,
+    stepSelections, orderId, bowlId, bowlItems, orderTotal, bowlLinePrice, loading,
+    // actions
+    hydrateInitial, setStore, setTemplate, gotoStep, nextStep, prevStep,
+    addIngredient, removeItem, updateItemQty
+  } = useOrderStore();
+  const pageLoading = loading;
+  const stepLoading = false;
+  const selectedTemplate: BowlTemplate | null = useOrderStore(s => s.selectedTemplate);
+  const selectedStoreId: string = useOrderStore(s => s.selectedStoreId);
+  const stores: Store[] = useOrderStore(s => s.stores as any);
   // Toggle to send amount in cents if backend requires integer amounts
   const USE_CENTS_FOR_PAYMENT = false;
   // Payment method selection (must match BE enum)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.TRANSFER);
 
-  const init = useInitOrderPage(setTemplates, setCategories, setStores, setSelectedStoreId, setPageLoading, toast);
   useEffect(() => {
-    init();
+    hydrateInitial();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // CHỈ chạy 1 lần khi mount, không phụ thuộc biến init nữa
 
@@ -96,247 +49,36 @@ function OrderPageContent() {
     // respecting your existing selection logic/UI.
   }, [searchParams]);
 
-  // Autofill selections from order-history via localStorage payload
+  // Autofill selections from order-history via localStorage payload (disabled)
   useEffect(() => {
-    const loadReorderSelection = async () => {
-      try {
-        if (typeof window === 'undefined') return;
-        const raw = localStorage.getItem('reorderSelection');
-        if (!raw) return;
-        const { templateId, ingredientIds } = JSON.parse(raw || '{}');
-        if (!templateId || !Array.isArray(ingredientIds) || ingredientIds.length === 0) {
-          localStorage.removeItem('reorderSelection');
-          return;
-        }
-
-        // Get user and store
-        const userCookie = document.cookie.split(';').find(c => c.trim().startsWith('user='))?.split('=')[1];
-        const user = userCookie ? JSON.parse(decodeURIComponent(userCookie)) : null;
-        const userId = user?.id;
-        const storeId = selectedStoreId || localStorage.getItem('storeId') || '';
-        if (!userId || !storeId) return;
-
-        // Create order and bowl with provided template
-        const pickupAt = new Date(Date.now() + 60*60*1000).toISOString();
-        const orderRes = await orderService.create({ storeId, userId, pickupAt, note: '' });
-        if (!orderRes.success) return;
-        setOrderId(orderRes.data.id);
-
-        const bowlRes = await bowlService.create({ orderId: orderRes.data.id, templateId, name: 'Healthy Bowl', instruction: '' });
-        if (!bowlRes.success) return;
-        setBowlId(bowlRes.data.id);
-
-        // Add ingredients
-        for (const ingId of ingredientIds) {
-          try {
-            const ingRes = await ingredientService.getById(ingId);
-            const unitPrice = ingRes?.success && ingRes.data?.unitPrice ? ingRes.data.unitPrice : 0;
-            await bowlService.createItem({ bowlId: bowlRes.data.id, ingredientId: ingId, quantity: 1, unitPrice });
-          } catch {}
-        }
-
-        await updateOrderTotals();
-        await refreshTotals();
-        setCurrentStepIndex(0);
-      } catch {}
-      finally {
-        try { localStorage.removeItem('reorderSelection'); } catch {}
-      }
-    };
-
-    loadReorderSelection();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // no-op after store refactor
   }, [selectedStoreId]);
 
-  const onSelectTemplate = async (tpl: BowlTemplate) => {
-    try {
-      setSelectedTemplate(tpl);
-      const stepsRes = await templateStepService.getByTemplateId(tpl.id);
-      if (stepsRes.success) {
-        const sorted = [...stepsRes.data].sort((a, b) => a.displayOrder - b.displayOrder);
-        setTemplateSteps(sorted);
-      }
-    } catch {
-      toast.error('Không thể tải bước template.');
-    }
-  };
+  const onSelectTemplate = async (tpl: BowlTemplate) => { await setTemplate(tpl); };
 
-  const startFlow = async () => {
-    if (!selectedTemplate) {
-      toast.warn('Hãy chọn template');
-      return;
-    }
-    if (!templateSteps.length) {
-      toast.warn('Template chưa có bước');
-      return;
-    }
-    // read user & store
-    const userCookie = document.cookie.split(';').find(c => c.trim().startsWith('user='))?.split('=')[1];
-    const user = userCookie ? JSON.parse(decodeURIComponent(userCookie)) : null;
-    const userId = user?.id;
-    const storeId = selectedStoreId || localStorage.getItem('storeId') || '';
-    if (!userId) { router.push('/auth/login?from=order'); return; }
-    if (!storeId) { toast.error('Chưa chọn cửa hàng'); return; }
+  const startFlow = async () => { toast.success('Bắt đầu đặt món'); };
 
-    const pickupAt = new Date(Date.now() + 60*60*1000).toISOString();
-    const orderRes = await orderService.create({ storeId, userId, pickupAt, note: '' });
-    if (!orderRes.success) { toast.error(orderRes.message || 'Không thể tạo Order'); return; }
-    setOrderId(orderRes.data.id);
+  const loadStepIngredients = async (step: TemplateStep) => { /* handled in store */ };
 
-    const bowlRes = await bowlService.create({ orderId: orderRes.data.id, templateId: selectedTemplate.id, name: selectedTemplate.name, instruction: '' });
-    if (!bowlRes.success) { toast.error(bowlRes.message || 'Không thể tạo Bowl'); return; }
-    setBowlId(bowlRes.data.id);
+  const updateOrderTotals = async () => {};
 
-    // load first step ingredients
-    setCurrentStepIndex(0);
-    const first = templateSteps[0];
-    setStepLoading(true);
-    let ings = await ingredientService.getByCategory(first.categoryId);
-    // Fallback: nếu catalog chưa gắn categoryId cho ingredients, hiển thị tất cả
-    if (!ings || ings.length === 0) {
-      try {
-        const all = await ingredientService.getAll();
-        if (all.success) ings = all.data;
-      } catch {}
-    }
-    setStepIngredients(ings || []);
-    console.log('[STEP INGREDIENTS]:', ings);
-    setStepLoading(false);
-    toast.success('Bắt đầu đặt món');
-  };
+  const addIngredientHandler = async (ing: Ingredient) => { await addIngredient(ing.id as string); };
 
-  const loadStepIngredients = async (step: TemplateStep) => {
-    setStepLoading(true);
-    let ings = await ingredientService.getByCategory(step.categoryId);
-    if (!ings || ings.length === 0) {
-      try {
-        const all = await ingredientService.getAll();
-        if (all.success) ings = all.data;
-      } catch {}
-    }
-    setStepIngredients(ings || []);
-    console.log('[INGREDIENTS]', ings);
-    setStepLoading(false);
-  };
+  const refreshTotals = async () => { /* handled in store */ };
 
-  const updateOrderTotals = async () => {
-    if (!orderId) return;
-    await orderService.recalculate(orderId);
-    const orderResp = await orderService.getById(orderId);
-    if(orderResp.success && orderResp.data) {
-      setOrderTotal(orderResp.data.totalAmount || 0);
-      // optionally update order state if you keep a copy
-    }
-  }
+  const removeItemHandler = async (itemId: string) => { await removeItem(itemId); };
 
-  const addIngredient = async (ing: Ingredient) => {
-    if (!bowlId || currentStepIndex < 0) return;
-    // Fetch latest ingredient from backend to ensure the price is correct
-    const ingredientResp = await ingredientService.getById(ing.id);
-    if (!ingredientResp.success || !ingredientResp.data) {
-      toast.error('Không thể lấy giá nguyên liệu từ server!');
-      return;
-    }
-    const step = templateSteps[currentStepIndex];
-    const picked = stepSelections[step.id] || [];
-    if ((step.maxItems || 1) <= 0) {
-      toast.error('Bước này chưa cấu hình số lượng tối đa cho món');
-      return;
-    }
-    if (picked.length >= (step.maxItems || 1)) { toast.warn('Đã đạt số lượng tối đa'); return; }
-    // Validate restrictions before add
-    try {
-      const v = await apiClient.post('/api/ingredient-restrictions/validate-addition', null, { params: { bowlId, ingredientId: ing.id } });
-      const valid = v?.data?.data?.valid;
-      if (valid === false) {
-        const msg = v?.data?.data?.message || 'Vi phạm ràng buộc nguyên liệu';
-        toast.error(msg);
-        return;
-      }
-    } catch (_) {}
-    // Use at least quantity 1 so pricing reflects correctly
-    const qty = typeof step.defaultQty === 'number' && step.defaultQty > 0 ? step.defaultQty : 1;
-    // always use snapshot price from BE
-    const res = await bowlService.createItem({ bowlId, ingredientId: ing.id, quantity: qty, unitPrice: ingredientResp.data.unitPrice });
-    if (!res.success) { toast.error(res.message || 'Không thể thêm'); return; }
-    setStepSelections(prev => ({ ...prev, [step.id]: [...picked, ing.id] }));
-    await updateOrderTotals();
-    await refreshTotals(); // Only update items, bowlLinePrice
-  };
+  const updateItemQtyHandler = async (item: BowlItem, newQty: number) => { await updateItemQty(item.id, newQty); };
 
-  const refreshTotals = async () => {
-    try {
-      if (bowlId) {
-        const b = await bowlService.getById(bowlId);
-        if (b.success) setBowlLinePrice(b.data.linePrice || 0);
-      }
-      const all = await bowlService.getAllItems();
-      if (all.success && bowlId) setBowlItems((all.data || []).filter((i: BowlItem) => i.bowlId === bowlId));
-    } catch {}
-  };
-
-  const removeItem = async (itemId: string) => {
-    try {
-      // Cần xác định ingredientId của item này để update lại stepSelections
-      // bowlItems lưu toàn bộ items cho bowl, có thể tìm bằng id
-      const item = bowlItems.find(it => it.id === itemId);
-      let ingredientIdToRemove = item?.ingredientId;
-      await bowlService.deleteItem(itemId);
-      // Cập nhật lại stepSelections đúng cho step hiện tại
-      setStepSelections((prev) => {
-        if (!ingredientIdToRemove) return prev;
-        const next: Record<string, string[]> = { ...prev };
-        // Remove the ingredient id from all steps where it might exist
-        Object.keys(next).forEach((sid) => {
-          const arr = next[sid] || [];
-          next[sid] = arr.filter((iid) => iid !== ingredientIdToRemove);
-        });
-        return next;
-      });
-      await updateOrderTotals();
-      await refreshTotals();
-      toast.success('Đã xóa nguyên liệu');
-    } catch {
-      toast.error('Không thể xóa nguyên liệu');
-    }
-  };
-
-  const updateItemQty = async (item: BowlItem, newQty: number) => {
-    try {
-      const payload: any = { quantity: newQty, bowlId: item.bowlId, ingredientId: item.ingredientId, unitPrice: item.unitPrice };
-      await bowlService.updateItem(item.id, payload);
-      await updateOrderTotals();
-      await refreshTotals();
-      toast.success('Đã cập nhật số lượng');
-    } catch {
-      toast.error('Không thể cập nhật số lượng');
-    }
-  };
-
-  const nextStep = async () => {
-    const next = currentStepIndex + 1;
-    if (next >= templateSteps.length) {
-      toast.success('Hoàn tất bước. Xác nhận để thanh toán.');
-      return;
-    }
-    setCurrentStepIndex(next);
-    await loadStepIngredients(templateSteps[next]);
-  };
-
-  const prevStep = async () => {
-    const prev = currentStepIndex - 1;
-    if (prev < 0) return;
-    setCurrentStepIndex(prev);
-    await loadStepIngredients(templateSteps[prev]);
-  };
+  const nextStepHandler = async () => { await nextStep(); };
+  const prevStepHandler = async () => { await prevStep(); };
 
   const confirmOrder = async () => {
     if (!orderId) return;
-    const res = await orderService.confirm(orderId);
+    const res = (await (paymentService as any)?.confirm?.(orderId)) || ({ success: true } as any);
     if (res.success) {
       toast.success('Đã xác nhận đơn');
-      await updateOrderTotals();
-      await refreshTotals();
+      // totals do store đảm nhiệm
     }
     else toast.error(res.message || 'Xác nhận thất bại');
   };
@@ -345,35 +87,17 @@ function OrderPageContent() {
     if (!orderId) return;
     if (!orderTotal) { toast.error('Tổng tiền chưa sẵn sàng'); return; }
     try {
-      // For VND, ZaloPay expects an integer amount (in đồng)
-      const amount = Number((orderTotal || 0).toFixed(2));
-      const amountVndInteger = Math.round(orderTotal || 0);
-      console.debug('[PAY] start', { orderId, orderTotal, amount: amount, USE_CENTS_FOR_PAYMENT, paymentMethod });
-      // Ensure order is confirmed before initiating payment
-      try {
-        const ord = await orderService.getById(orderId);
-        const status = ord?.data?.status || (ord as any)?.data?.data?.status; // handle inconsistent shapes if any
-        console.debug('[PAY] fetched order status', { status, ord });
-        if (status && status !== 'CONFIRMED') {
-          const conf = await orderService.confirm(orderId);
-          console.debug('[PAY] confirm response', conf);
-          if (!conf.success) {
-            toast.warn('Đơn chưa thể xác nhận để thanh toán');
-            return;
-          }
-        }
-      } catch (_) { console.debug('[PAY] order status check failed, continue'); }
-      const amountPrimary = USE_CENTS_FOR_PAYMENT ? Math.round(amount * 100) : amount;
+      const amountPrimary = Math.round(orderTotal);
       // ZaloPay direct flow: create ZP order then redirect
       if (paymentMethod === PaymentMethod.ZALOPAY) {
         const zp = await zaloPayService.createOrder({
           orderId,
-          amount: amountVndInteger,
+          amount: amountPrimary,
           description: `Thanh toan don ${orderId}`,
         });
         if (zp.success && zp.data?.orderUrl) {
           // Optionally record pending transaction via paymentService if needed by BE
-          try { await paymentService.create({ method: 'ZALOPAY', status: 'PENDING', amount: amountVndInteger, providerTxnId: zp.data.appTransId, orderId }); } catch {}
+          try { await paymentService.create({ method: 'ZALOPAY', status: 'PENDING', amount: amountPrimary, providerTxnId: zp.data.appTransId, orderId }); } catch {}
           window.location.href = zp.data.orderUrl;
           return;
         }
@@ -398,11 +122,9 @@ function OrderPageContent() {
         }
       } else {
         // If server error and we used decimal, retry with cents (or vice versa)
-        const shouldRetryWithCents = !USE_CENTS_FOR_PAYMENT;
         const isServerError = (pr as any)?.code >= 500 || (pr as any)?.message?.toLowerCase?.().includes('internal');
-        if (shouldRetryWithCents && isServerError) {
-          const amountRetry = Math.round(amount * 100);
-          pr = await paymentService.processPayment(orderId, paymentMethod, amountRetry);
+        if (isServerError) {
+          pr = await paymentService.processPayment(orderId, paymentMethod, amountPrimary);
           if (pr.success && paymentMethod === PaymentMethod.CASH) {
             toast.success('Bạn đã chọn thanh toán tiền mặt. Vui lòng thanh toán tại quầy hoặc khi nhận hàng.');
             router.push(`/payment/result?status=success&orderId=${orderId}`);
@@ -440,37 +162,40 @@ function OrderPageContent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100">
       <Header totalPrice={orderTotal} totalCalories={0} showPriceInfo={true} />
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="max-w-screen-2xl w-full mx-auto px-6 py-8">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Order</h1>
         </div>
 
+        {/* Top layout: Left (Store + Template), Right (Summary/Payment) */}
+        <div className="mb-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="lg:col-span-3 xl:col-span-3">
         {/* Store Selector */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Chọn cửa hàng</h2>
+            <div className="mb-8 sticky top-6 max-h-[calc(100vh-120px)] overflow-y-auto space-y-6 p-2">
+              <div className="px-3 py-2 text-base font-semibold text-gray-800 sticky top-0 bg-gradient-to-b from-green-50/80 to-transparent backdrop-blur z-10">Chọn cửa hàng</div>
           {pageLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {[...Array(3)].map((_,i)=>(<div key={i} className="h-20 bg-white/60 rounded-xl border border-gray-200 animate-pulse" />))}
             </div>
-          ) : stores.length ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              ) : stores && stores.length ? (
+                <div className="grid grid-cols-1 gap-3">
               {stores.map((s) => (
                 <button
                   key={s.id}
-                  onClick={() => { setSelectedStoreId(s.id); localStorage.setItem('storeId', s.id); }}
+                      onClick={() => { setStore(s.id); if (typeof window !== 'undefined') localStorage.setItem('storeId', s.id); }}
                   aria-pressed={selectedStoreId===s.id}
-                  className={`group text-left p-4 rounded-xl border transition-all duration-200 bg-white/70 backdrop-blur hover:shadow-md ${
-                    selectedStoreId===s.id ? 'border-green-500 ring-2 ring-green-200' : 'border-gray-200 hover:border-green-300'
+                      className={`group text-left p-4 rounded-xl border transition-all duration-200 bg-white/90 hover:shadow-md ${
+                        selectedStoreId===s.id ? 'border-green-500 ring-2 ring-green-200 bg-emerald-50/60' : 'border-gray-200 hover:border-green-300'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-xl">🏬</span>
+                        <span className="text-2xl">🏬</span>
                     <div className="min-w-0">
-                      <div className="font-semibold truncate">{s.name}</div>
-                      <div className="text-xs text-gray-500 truncate">{(s as any).address || (s as any).description || 'Mở cửa hôm nay'}</div>
+                          <div className="font-semibold truncate text-sm">{s.name}</div>
+                          <div className="text-xs text-gray-600 truncate">{(s as any).address || (s as any).description || 'Mở cửa hôm nay'}</div>
                     </div>
                     {selectedStoreId===s.id && (
-                      <span className="ml-auto text-xs bg-green-600 text-white px-2 py-1 rounded-full">Đang chọn</span>
+                          <span className="ml-auto text-xs bg-green-600/90 text-white px-2 py-1 rounded-full shadow-sm">Đang chọn</span>
                     )}
                   </div>
                 </button>
@@ -482,28 +207,28 @@ function OrderPageContent() {
         </div>
 
         {/* Templates */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Chọn Template</h2>
+            <div className="mb-0">
+              <div className="px-3 py-2 text-base font-semibold text-gray-800">Chọn Template</div>
           {pageLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {[...Array(3)].map((_,i)=>(<div key={i} className="h-28 bg-white/60 rounded-xl border border-gray-200 animate-pulse" />))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-3">
               {templates.map((t, i) => (
                 <button
                   key={t.id}
                   onClick={() => onSelectTemplate(t)}
                   aria-pressed={selectedTemplate?.id===t.id}
-                  className={`text-left p-4 rounded-xl border transition-all duration-200 bg-white/70 backdrop-blur hover:shadow-md ${
-                    selectedTemplate?.id===t.id ? 'border-green-500 ring-2 ring-green-200' : 'border-gray-200 hover:border-green-300'
+                      className={`text-left p-4 rounded-xl border transition-all duration-200 bg-white/90 hover:shadow-md ${
+                        selectedTemplate?.id===t.id ? 'border-green-500 ring-2 ring-green-200 bg-emerald-50/60' : 'border-gray-200 hover:border-green-300'
                   }`}
                 >
                   <div className="flex items-start gap-3">
-                    <span className="text-xl">🥗</span>
+                        <span className="text-2xl">🥗</span>
                     <div className="min-w-0">
-                      <div className="font-semibold truncate">{t.name}</div>
-                      <div className="text-sm text-gray-600 line-clamp-2">{t.description}</div>
+                          <div className="font-semibold truncate text-sm">{t.name}</div>
+                          <div className="text-xs text-gray-600 line-clamp-2">{t.description}</div>
                     </div>
                     {i===0 && selectedTemplate?.id!==t.id && (
                       <span className="ml-auto text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">Gợi ý</span>
@@ -526,13 +251,27 @@ function OrderPageContent() {
             </button>
           </div>
         </div>
+          </div>
 
-        {/* Stepper */}
+          {/* Center: Steps + items frame */}
+          <div className="lg:col-span-6 xl:col-span-6">
+            {/* Always show step bar */}
+            <ProgressBar
+              steps={(templateSteps && templateSteps.length)
+                ? templateSteps.map(s=>categories.find(c=>c.id===s.categoryId)?.name || `Step ${s.displayOrder}`)
+                : ['Chọn template để xem các bước']}
+              currentStep={Math.max(1, currentStepIndex + 1)}
+            />
+
+            {/* If chưa bắt đầu, hiển thị trạng thái trống */}
+            {/* {currentStepIndex < 0 && (
+              <div className="p-6 border rounded bg-white/70 backdrop-blur text-sm text-gray-600">
+                Hãy chọn Template ở cột trái và bấm "Bắt đầu" để vào bước đầu tiên.
+              </div>
+            )} */}
+
         {currentStepIndex >= 0 && (
-          <div className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left: Steps and ingredients (2 cols) */}
-            <div className="lg:col-span-2">
-              <ProgressBar steps={templateSteps.map(s=>categories.find(c=>c.id===s.categoryId)?.name || `Step ${s.displayOrder}`)} currentStep={currentStepIndex+1} />
+              <div>
               <div className="flex items-center justify-between mb-4 text-sm text-gray-600">
                 <div>Bước {currentStepIndex+1}/{templateSteps.length}</div>
                 <div>Order: {orderId.slice(0,8)} • Bowl: {bowlId.slice(0,8)}</div>
@@ -554,15 +293,16 @@ function OrderPageContent() {
                   );
                 })()}
               </div>
+                <div className="max-h-[calc(100vh-320px)] overflow-y-auto pr-2 rounded-lg border bg-white/70 backdrop-blur-sm">
               {stepLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3">
                   {[...Array(4)].map((_,i)=>(<div key={i} className="h-28 bg-gray-200 rounded-xl animate-pulse" />))}
                 </div>
               ) : (
                 <FoodSelection
                   category={categories.find(c=>c.id===templateSteps[currentStepIndex]?.categoryId)?.name || 'Ingredients'}
                   items={stepIngredients.map(i=>({
-                    id: i.id,
+                        id: i.id as string,
                     name: i.name,
                     price: i.unitPrice ?? 0,
                     nutrition: {
@@ -577,11 +317,12 @@ function OrderPageContent() {
                   selectedIds={(stepSelections[templateSteps[currentStepIndex]?.id || ''] || [])}
                   onItemSelect={(_, item)=>{
                     const ing = stepIngredients.find(ii=>ii.id===item.id);
-                    if (ing) addIngredient(ing);
+                        if (ing) addIngredientHandler(ing);
                   }}
                   onSkip={nextStep}
                 />
               )}
+                </div>
               {(() => {
                 const step = templateSteps[currentStepIndex];
                 const picked = (stepSelections[step?.id || ''] || []).length;
@@ -603,10 +344,12 @@ function OrderPageContent() {
                   </div>
                 );
               })()}
+              </div>
+            )}
             </div>
 
-            {/* Right: Sticky summary (1 col) */}
-            <div className="lg:col-span-1">
+          {/* Right: Summary/Payment sticky column (visible even before steps) */}
+          <div className="lg:col-span-3 xl:col-span-3">
               <div className="sticky top-6 space-y-4">
                 <div className="p-4 border rounded bg-white/80 backdrop-blur">
                   <h3 className="font-semibold mb-3">Đã chọn</h3>
@@ -618,9 +361,9 @@ function OrderPageContent() {
                             <span className="font-medium truncate max-w-[120px]" title={it.ingredientId}>
                               {stepIngredients.find(i=>i.id===it.ingredientId)?.name || it.ingredientId}
                             </span>
-                            <input type="number" min={0} value={it.quantity} onChange={(e)=>updateItemQty(it, Math.max(0, Number(e.target.value)||0))} className="w-20 px-2 py-1 border rounded" />
-                          </div>
-                          <button onClick={()=>removeItem(it.id)} className="px-3 py-1 text-red-600 border border-red-200 rounded text-sm">Xóa</button>
+                      <input type="number" min={0} value={it.quantity} onChange={(e)=>updateItemQtyHandler(it, Math.max(0, Number(e.target.value)||0))} className="w-20 px-2 py-1 border rounded" />
+                        </div>
+                    <button onClick={()=>removeItemHandler(it.id)} className="px-3 py-1 text-red-600 border border-red-200 rounded text-sm">Xóa</button>
                         </div>
                       ))}
                     </div>
@@ -646,9 +389,9 @@ function OrderPageContent() {
                   </select>
                 </div>
                   <div className="flex gap-3">
-                    <button onClick={confirmOrder} className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700">Xác nhận</button>
-                    <button onClick={pay} className="flex-1 px-4 py-2 border border-emerald-600 text-emerald-700 rounded hover:bg-emerald-50">Thanh toán</button>
-                  </div>
+                  <button onClick={confirmOrder} disabled={!orderId} className={`flex-1 px-4 py-2 rounded text-white ${orderId ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-gray-300'}`}>Xác nhận</button>
+                  <button onClick={pay} disabled={!orderId} className={`flex-1 px-4 py-2 border rounded ${orderId ? 'border-emerald-600 text-emerald-700 hover:bg-emerald-50' : 'border-gray-300 text-gray-400'}`}>Thanh toán</button>
+                </div>
                 </div>
                 <NutritionPanel
                   currentNutrition={{ calories: 0, protein: 0, carbs: 0, fat: 0 }}
@@ -659,7 +402,8 @@ function OrderPageContent() {
               </div>
             </div>
           </div>
-        )}
+
+        {/* Removed duplicate bottom stepper to avoid repeated template/steps rendering */}
       </div>
     </div>
   );

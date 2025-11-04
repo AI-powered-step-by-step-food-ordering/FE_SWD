@@ -28,15 +28,16 @@ export default function CreateOrderPage() {
     try {
       setLoading(true);
       const [storesRes, templatesRes] = await Promise.all([
-        storeService.getAll(),
-        bowlTemplateService.getAll()
+        storeService.getAll({ page: 0, size: 100 }),
+        bowlTemplateService.getAll({ page: 0, size: 100 })
       ]);
 
-      if (storesRes.success) {
-        setStores(storesRes.data);
+      if (storesRes.data) {
+        const storesList = ((storesRes.data as any).content || storesRes.data) as any[];
+        setStores(storesList as any);
       }
-      if (templatesRes.success) {
-        setTemplates(templatesRes.data);
+      if (templatesRes.data) {
+        setTemplates((templatesRes.data?.content || []) as any);
       }
     } catch (err) {
       setError('Failed to load data');
@@ -206,6 +207,7 @@ export default function CreateOrderPage() {
     </div>
   );
 }
+
 
 
 

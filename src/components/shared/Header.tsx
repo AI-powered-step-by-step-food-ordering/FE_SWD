@@ -163,11 +163,15 @@ export default function Header({ totalPrice = 0, totalCalories = 0, showPriceInf
                 <button 
                   id="profileBtn"
                   onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                  className="w-10 h-10 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full flex items-center justify-center hover:from-green-200 hover:to-emerald-200 transition-all duration-300 hover:scale-105 shadow-lg border-2 border-white"
+                  className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-105 shadow-lg border-2 border-white overflow-hidden bg-gradient-to-br from-green-100 to-emerald-100 hover:from-green-200 hover:to-emerald-200"
                 >
-                  <span className="text-sm font-bold text-green-600">
-                    {user.name?.charAt(0).toUpperCase() || 'U'}
-                  </span>
+                  {user?.imageUrl ? (
+                    <img src={user.imageUrl} alt={user.fullName || user.name || 'User'} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-sm font-bold text-green-600">
+                      {(user.fullName || user.name || 'U')?.charAt(0).toUpperCase()}
+                    </span>
+                  )}
                 </button>
                 
                 {/* Dropdown Menu */}
@@ -180,7 +184,7 @@ export default function Header({ totalPrice = 0, totalCalories = 0, showPriceInf
                   <div className="py-2">
                     {/* User Info */}
                     <div className="px-4 py-3 border-b border-gray-100">
-                      <p className="text-sm font-medium text-gray-900">{user.fullName}</p>
+                      <p className="text-sm font-medium text-gray-900">{user.fullName || user.name}</p>
                       {/* <p className="text-xs text-gray-500">{user.email}</p> */}
                     </div>
                     

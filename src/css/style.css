@@ -35,6 +35,26 @@
     @apply relative flex-1 rounded-full bg-neutral-200/40 dark:bg-stroke-dark;
   }
 
+  /* Step bar nice horizontal scrollbar */
+  .step-scrollbar {
+    scrollbar-width: thin; /* Firefox */
+    scrollbar-color: #34d399 #e5e7eb; /* thumb track */
+  }
+  .step-scrollbar::-webkit-scrollbar {
+    height: 8px;
+  }
+  .step-scrollbar::-webkit-scrollbar-track {
+    background: rgba(229,231,235,0.7);
+    border-radius: 9999px;
+  }
+  .step-scrollbar::-webkit-scrollbar-thumb {
+    background: linear-gradient(90deg, #34d399, #059669);
+    border-radius: 9999px;
+  }
+  .step-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(90deg, #10b981, #047857);
+  }
+
   
   .chat-height {
     @apply h-[calc(100vh_-_8.125rem)] lg:h-[calc(100vh_-_5.625rem)];

@@ -1,47 +1,28 @@
 import apiClient from './api.config';
-import { ApiResponse, Store, StoreRequest, PageRequest, PaginatedApiResponse } from '@/types/api.types';
+import { ApiResponse, Store, StoreRequest, PagedResponse } from '@/types/api.types';
 
 class StoreService {
   /**
-   * Get all stores with pagination, search, and sort
+   * Get all stores
    */
-  async getAll(params?: PageRequest): Promise<PaginatedApiResponse<Store>> {
-    // Align with backend: /api/stores/getall?page=&size=&sortBy=&sortDir=
-    let url = '/api/stores/getall';
-    const queryParams = new URLSearchParams();
-
-    if (params) {
-      if (params.page !== undefined) queryParams.append('page', params.page.toString());
-      if (params.size !== undefined) queryParams.append('size', params.size.toString());
-      const anyParams = params as any;
-      let sortBy: string | undefined;
-      let sortDir: string | undefined;
-      if (params.sort) {
-        const [field, direction] = params.sort.split(',');
-        sortBy = field;
-        sortDir = direction || 'desc';
-      } else if (anyParams.sortField || anyParams.sortDirection) {
-        sortBy = anyParams.sortField;
-        sortDir = anyParams.sortDirection;
-      }
-      if (sortBy) queryParams.append('sortBy', sortBy);
-      if (sortDir) queryParams.append('sortDir', sortDir);
+  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Store> | Store[]>> {
+    const response = await apiClient.get<ApiResponse<any>>('/api/stores/getall', { params });
+    const res = response.data as ApiResponse<any>;
+    // If backend returns paged, keep as-is; if returns array, wrap in synthetic page
+    if (Array.isArray(res.data)) {
+      const arr = res.data as Store[];
+      const synthetic: PagedResponse<Store> = {
+        content: arr,
+        page: 0,
+        size: arr.length,
+        totalElements: arr.length,
+        totalPages: 1,
+        first: true,
+        last: true,
+      };
+      return { ...res, data: synthetic } as ApiResponse<PagedResponse<Store>>;
     }
-
-    if (queryParams.toString()) {
-      url += `?${queryParams.toString()}`;
-    }
-
-    const response = await apiClient.get<PaginatedApiResponse<Store>>(url);
-    return response.data;
-  }
-
-  /**
-   * Get all stores (legacy method for backward compatibility)
-   */
-  async getAllLegacy(): Promise<ApiResponse<Store[]>> {
-    const response = await apiClient.get<ApiResponse<Store[]>>('/api/stores/getall');
-    return response.data;
+    return res as ApiResponse<PagedResponse<Store>>;
   }
 
   /**

@@ -1,47 +1,27 @@
 import apiClient from './api.config';
-import { ApiResponse, Ingredient, IngredientRequest, PageRequest, PaginatedApiResponse } from '@/types/api.types';
+import { ApiResponse, Ingredient, IngredientRequest, PagedResponse } from '@/types/api.types';
 
 class IngredientService {
   /**
-   * Get all ingredients with pagination, search, and sort
+   * Get all ingredients
    */
-  async getAll(params?: PageRequest): Promise<PaginatedApiResponse<Ingredient>> {
-    // Align with backend: /api/ingredients/getall?page=&size=&sortBy=&sortDir=
-    let url = '/api/ingredients/getall';
-    const queryParams = new URLSearchParams();
-
-    if (params) {
-      if (params.page !== undefined) queryParams.append('page', params.page.toString());
-      if (params.size !== undefined) queryParams.append('size', params.size.toString());
-      const anyParams = params as any;
-      let sortBy: string | undefined;
-      let sortDir: string | undefined;
-      if (params.sort) {
-        const [field, direction] = params.sort.split(',');
-        sortBy = field;
-        sortDir = direction || 'desc';
-      } else if (anyParams.sortField || anyParams.sortDirection) {
-        sortBy = anyParams.sortField;
-        sortDir = anyParams.sortDirection;
-      }
-      if (sortBy) queryParams.append('sortBy', sortBy);
-      if (sortDir) queryParams.append('sortDir', sortDir);
+  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Ingredient>>> {
+    const response = await apiClient.get<ApiResponse<any>>('/api/ingredients/getall', { params });
+    const res = response.data as ApiResponse<any>;
+    if (Array.isArray(res.data)) {
+      const arr = res.data as Ingredient[];
+      const synthetic: PagedResponse<Ingredient> = {
+        content: arr,
+        page: 0,
+        size: arr.length,
+        totalElements: arr.length,
+        totalPages: 1,
+        first: true,
+        last: true,
+      };
+      return { ...res, data: synthetic } as ApiResponse<PagedResponse<Ingredient>>;
     }
-
-    if (queryParams.toString()) {
-      url += `?${queryParams.toString()}`;
-    }
-
-    const response = await apiClient.get<PaginatedApiResponse<Ingredient>>(url);
-    return response.data;
-  }
-
-  /**
-   * Get all ingredients (legacy method for backward compatibility)
-   */
-  async getAllLegacy(): Promise<ApiResponse<Ingredient[]>> {
-    const response = await apiClient.get<ApiResponse<Ingredient[]>>('/api/ingredients');
-    return response.data;
+    return res as ApiResponse<PagedResponse<Ingredient>>;
   }
 
   /**
@@ -49,6 +29,20 @@ class IngredientService {
    */
   async getById(id: string): Promise<ApiResponse<Ingredient>> {
     const response = await apiClient.get<ApiResponse<Ingredient>>(`/api/ingredients/getbyid/${id}`);
+    return response.data;
+  }
+
+  /**
+   * Get ingredients by Category (paged) - backend native endpoint
+   */
+  async getByCategoryPaged(
+    categoryId: string,
+    params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }
+  ): Promise<ApiResponse<PagedResponse<Ingredient>>> {
+    const response = await apiClient.get<ApiResponse<PagedResponse<Ingredient>>>(
+      `/api/ingredients/category/${encodeURIComponent(categoryId)}`,
+      { params }
+    );
     return response.data;
   }
 
@@ -124,12 +118,8 @@ class IngredientService {
    * Get ingredients by category
    */
   async getByCategory(categoryId: string): Promise<Ingredient[]> {
-    const response = await this.getAll();
-    if (response.success && response.data) {
-      const list = response.data.content ?? [];
-      return list.filter((ingredient: Ingredient) => ingredient.categoryId === categoryId);
-    }
-    return [];
+    const response = await this.getByCategoryPaged(categoryId, { page: 0, size: 500 });
+    return response.data?.content || [];
   }
 }
 

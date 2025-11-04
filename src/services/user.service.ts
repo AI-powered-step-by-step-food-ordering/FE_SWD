@@ -1,6 +1,32 @@
 import apiClient from './api.config';
 import { ApiResponse, User, UserUpdateRequest, PageRequest, PaginatedApiResponse } from '@/types/api.types';
 
+// Ensure backend LocalDate (yyyy-MM-dd) for dateOfBirth
+function toLocalDateString(input?: string): string | undefined {
+  if (!input) return undefined;
+  // If already yyyy-MM-dd, return as-is
+  if (/^\d{4}-\d{2}-\d{2}$/.test(input)) return input;
+  try {
+    const d = new Date(input);
+    if (isNaN(d.getTime())) return undefined;
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeUserPayload(userData: UserUpdateRequest): UserUpdateRequest {
+  const dto: UserUpdateRequest = { ...userData };
+  if (userData.dateOfBirth) {
+    const localDate = toLocalDateString(userData.dateOfBirth);
+    if (localDate) dto.dateOfBirth = localDate;
+  }
+  return dto;
+}
+
 class UserService {
   /**
    * Get all users with pagination, search, and sort (Admin only)
@@ -61,7 +87,7 @@ class UserService {
   async update(id: string, userData: UserUpdateRequest): Promise<ApiResponse<User>> {
     const response = await apiClient.put<ApiResponse<User>>(
       `/api/users/update/${id}`,
-      userData
+      normalizeUserPayload(userData)
     );
     return response.data;
   }
@@ -72,7 +98,7 @@ class UserService {
   async updateByEmail(email: string, userData: UserUpdateRequest): Promise<ApiResponse<User>> {
     const response = await apiClient.put<ApiResponse<User>>(
       `/api/users/update/${encodeURIComponent(email)}`,
-      userData
+      normalizeUserPayload(userData)
     );
     return response.data;
   }
@@ -118,7 +144,7 @@ class UserService {
   async create(userData: UserUpdateRequest & { password: string }): Promise<ApiResponse<User>> {
     const response = await apiClient.post<ApiResponse<User>>(
       '/api/users/create',
-      userData
+      { ...normalizeUserPayload(userData) }
     );
     return response.data;
   }
@@ -167,7 +193,7 @@ class UserService {
   async updateCurrentUser(userData: UserUpdateRequest): Promise<ApiResponse<User>> {
     const response = await apiClient.put<ApiResponse<User>>(
       '/api/users/me',
-      userData
+      normalizeUserPayload(userData)
     );
     return response.data;
   }

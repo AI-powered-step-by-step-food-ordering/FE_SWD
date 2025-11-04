@@ -48,9 +48,9 @@ export default function GoalSelection({ goals, selectedGoal, onGoalSelect }: Goa
               <span className="text-2xl">{getGoalIcon(key)}</span>
               <h3 className="font-bold text-lg">{getGoalDisplayName(key)}</h3>
             </div>
-            <p className="text-sm text-gray-600 mb-2">
+            {/* <p className="text-sm text-gray-600 mb-2">
               Target: {goal.targetCalories} kcal, {goal.targetProtein}g protein
-            </p>
+            </p> */}
           </button>
         ))}
       </div>

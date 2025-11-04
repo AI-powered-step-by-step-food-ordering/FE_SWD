@@ -5,30 +5,16 @@ import {
   BowlTemplateRequest,
   TemplateStep,
   TemplateStepRequest,
+  PagedResponse,
 } from '@/types/api.types';
 
 class BowlTemplateService {
   /**
    * Get all bowl templates
    */
-  async getAll(): Promise<ApiResponse<BowlTemplate[]>> {
-    // Normalize backend response: support both array and paginated shapes
-    const response = await apiClient.get<any>('/api/bowl_templates/getall');
-    const raw: any = response.data;
-
-    // If data is already an array, return as-is
-    if (Array.isArray(raw?.data)) {
-      return raw as ApiResponse<BowlTemplate[]>;
-    }
-
-    // If backend returns paginated object, flatten content to array
-    const content = raw?.data?.content ?? raw?.content;
-    if (Array.isArray(content)) {
-      return { ...raw, data: content } as ApiResponse<BowlTemplate[]>;
-    }
-
-    // Fallback: return raw response
-    return raw as ApiResponse<BowlTemplate[]>;
+  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<BowlTemplate>>> {
+    const response = await apiClient.get<ApiResponse<PagedResponse<BowlTemplate>>>('/api/bowl_templates/getall', { params });
+    return response.data;
   }
 
   /**
@@ -80,11 +66,9 @@ class BowlTemplateService {
    * Get active templates only
    */
   async getActiveTemplates(): Promise<BowlTemplate[]> {
-    const response = await this.getAll();
-    if (response.success && response.data) {
-      return response.data.filter((template) => template.isActive);
-    }
-    return [];
+    const response = await this.getAll({ page: 0, size: 100 });
+    const content = response.data?.content ?? [];
+    return content.filter((template) => template.active === true);
   }
 
   // Template Steps Methods
@@ -144,22 +128,12 @@ class BowlTemplateService {
    * Get steps for a specific template
    */
   async getStepsByTemplate(templateId: string): Promise<TemplateStep[]> {
-    // Use bowl template detail endpoint that embeds steps
-    try {
-      const response = await apiClient.get<any>(`/api/bowl_templates/getbyid/${templateId}`);
-      const res = response.data;
-      const steps: TemplateStep[] = Array.isArray(res?.data?.steps) ? res.data.steps : [];
-      return [...steps].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
-    } catch {}
-    // Fallback to getAllSteps and filter client-side if needed
-    try {
-      const all = await this.getAllSteps();
-      if (all.success && Array.isArray(all.data)) {
-        return all.data
-          .filter((step) => step.templateId === templateId)
-          .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
-      }
-    } catch {}
+    const response = await this.getAllSteps();
+    if (response.success && response.data) {
+      return response.data
+        .filter((step) => step.templateId === templateId)
+        .sort((a, b) => a.displayOrder - b.displayOrder);
+    }
     return [];
   }
 }

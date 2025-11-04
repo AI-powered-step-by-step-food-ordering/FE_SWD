@@ -19,6 +19,7 @@ export default function OrderHistoryPage() {
   const router = useRouter();
   const [currentPage, setCurrentPage] = useState<number>(1);
   const pageSize = 8; // items per page
+  const [totalPages, setTotalPages] = useState<number>(1);
   const [orderIdToPaymentMethod, setOrderIdToPaymentMethod] = useState<Record<string, string>>({});
   const FETCH_PAYMENT_METHODS = false; // enable when /payment_transactions/getbyorder is stable
 
@@ -43,16 +44,17 @@ export default function OrderHistoryPage() {
       try {
         // Fetch user's order history from API
         const { orderService } = await import('@/services');
-        const response = await orderService.getOrderHistory(parsedUser.id);
-        
-        if (response.success && response.data) {
-          const mapped: Order[] = (response.data as any[]).map((o: any) => ({
+        const response = await orderService.getOrderHistory(parsedUser.id, { page: currentPage - 1, size: pageSize, sortBy: 'createdAt', sortDir: 'desc' });
+
+        if (response.success && response.data && Array.isArray(response.data.content)) {
+          const mapped: Order[] = (response.data.content as any[]).map((o: any) => ({
             id: o.id,
             date: o.createdAt ? new Date((String(o.createdAt).length === 10 ? Number(o.createdAt) * 1000 : Number(o.createdAt))).toISOString() : new Date().toISOString(),
             totalPrice: Number(o.totalAmount ?? 0),
             status: String(o.status ?? 'UNKNOWN'),
           }));
           setOrders(mapped);
+          setTotalPages(Math.max(1, Number(response.data.totalPages || 1)));
         } else {
           setOrders([]);
         }
@@ -65,7 +67,7 @@ export default function OrderHistoryPage() {
     };
 
     fetchOrders();
-  }, [router]);
+  }, [router, currentPage]);
 
   const handleReorder = (order: Order) => {
     router.push('/order');
@@ -92,7 +94,6 @@ export default function OrderHistoryPage() {
     return date.toLocaleDateString();
   };
 
-  const totalPages = Math.max(1, Math.ceil(orders.length / pageSize));
   const safePage = Math.min(Math.max(1, currentPage), totalPages);
   const startIdx = (safePage - 1) * pageSize;
   const endIdx = startIdx + pageSize;

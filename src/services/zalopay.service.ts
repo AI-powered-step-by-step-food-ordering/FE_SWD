@@ -56,8 +56,7 @@ class ZaloPayService {
   async refund(paymentTransactionId: string, amount: number, description?: string): Promise<ApiResponse<string>> {
     const response = await apiClient.post<ApiResponse<string>>(
       `/api/zalopay/refund/${encodeURIComponent(paymentTransactionId)}`,
-      {},
-      { params: { amount, description } }
+      { amount, description }
     );
     return response.data;
   }
