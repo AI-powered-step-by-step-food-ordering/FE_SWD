@@ -5,7 +5,7 @@ class OrderService {
   /**
    * Get all orders
    */
-  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Order>>> {
+  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc'; search?: string; status?: string }): Promise<ApiResponse<PagedResponse<Order>>> {
     const response = await apiClient.get<ApiResponse<PagedResponse<Order>>>('/api/orders/getall', { params });
     return response.data;
   }

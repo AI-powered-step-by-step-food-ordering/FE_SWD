@@ -15,6 +15,7 @@ const menuItems = [
   { title: 'Users', iconClass: 'bx-user', href: '/admin/users' },
   { title: 'Orders', iconClass: 'bx-receipt', href: '/admin/orders' },
   { title: 'Ingredients', iconClass: 'bx-lemon', href: '/admin/ingredients' },
+  { title: 'Bowl Templates', iconClass: 'bx-food-menu', href: '/admin/bowl-templates' },
   { title: 'Categories', iconClass: 'bx-category', href: '/admin/categories' },
   { title: 'Promotions', iconClass: 'bx-gift', href: '/admin/promotions' },
   { title: 'Stores', iconClass: 'bx-store', href: '/admin/stores' },
@@ -57,10 +58,10 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
               <Link
                 href="/"
                 className="text-gray-500 hover:text-green-600"
-                aria-label="Switch"
-                title="Switch"
+                aria-label="Return"
+                title="Return"
               >
-                <i className="bx bx-transfer text-[22px]" aria-hidden="true"></i>
+                <i className="bx bx-arrow-back text-[22px]" aria-hidden="true"></i>
               </Link>
             </div>
             <button
