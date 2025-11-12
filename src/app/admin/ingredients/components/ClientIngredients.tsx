@@ -26,13 +26,12 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
   const [categories, setCategories] = useState<Category[]>(Array.isArray(initialCategories) ? initialCategories : []);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(12);
+  const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [useLegacy, setUseLegacy] = useState(false);
   const [editing, setEditing] = useState<Ingredient | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -41,38 +40,30 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
   const loadIngredients = async () => {
     setLoading(true);
     try {
-      const sortParam = sortField ? `${sortField},${sortDirection}` : undefined;
-      const q = (search || '').trim().toLowerCase();
+      const q = (search || '').trim();
 
-      if (q && !useLegacy) {
-        setUseLegacy(true);
-        setLoading(false);
-        return;
-      }
-      if (!q && useLegacy) {
-        setUseLegacy(false);
-      }
+      // Use server-side search when there's a search query
+      if (q) {
+        const response = await ingredientService.search({
+          searchText: q,
+          page: page - 1,
+          size: pageSize,
+          sortBy: sortField,
+          sortDir: sortDirection,
+        });
 
-      if (useLegacy && q) {
-        const legacy = await ingredientService.getAllLegacy();
-        if (legacy.success && legacy.data) {
-          let list = legacy.data;
-          list = list.filter((i) => (
-            (i.name?.toLowerCase().includes(q)) ||
-            (String(i.categoryId || '').toLowerCase().includes(q))
-          ));
-          const total = list.length;
-          const startIndex = Math.max(0, (page - 1) * Math.max(1, pageSize));
-          const paged = list.slice(startIndex, startIndex + pageSize);
-          setIngredients(paged);
-          setTotalElements(total);
-          setTotalPages(Math.max(1, Math.ceil(total / Math.max(1, pageSize))));
+        if (response.success && response.data) {
+          setIngredients(response.data.content);
+          setTotalElements(response.data.totalElements);
+          setTotalPages(response.data.totalPages);
         }
       } else {
+        // Use server-side pagination without search
         const response = await ingredientService.getAll({
           page: page - 1, // Backend uses 0-indexed pages
           size: pageSize,
-          sort: sortParam,
+          sortBy: sortField,
+          sortDir: sortDirection,
         });
 
         if (response.success && response.data) {

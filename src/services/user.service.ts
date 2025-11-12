@@ -37,7 +37,6 @@ class UserService {
 
     if (params?.page !== undefined) searchParams.append('page', params.page.toString());
     if (params?.size !== undefined) searchParams.append('size', params.size.toString());
-    if (params?.search) searchParams.append('search', params.search);
 
     const anyParams = params as any;
     let sortBy: string | undefined;
@@ -62,6 +61,62 @@ class UserService {
    */
   async getAllLegacy(): Promise<ApiResponse<User[]>> {
     const response = await apiClient.get<ApiResponse<User[]>>('/api/users/getall');
+    return response.data;
+  }
+
+  /**
+   * Search users with server-side filtering, pagination, and sorting
+   * Backend expects: fullName, email, phone (not searchText)
+   */
+  async search(params?: { 
+    searchText?: string;
+    page?: number; 
+    size?: number; 
+    sortBy?: string; 
+    sortDir?: 'asc' | 'desc' 
+  }): Promise<PaginatedApiResponse<User>> {
+    const searchParams = new URLSearchParams();
+
+    // Backend expects fullName, email, phone - we search across all fields
+    if (params?.searchText) {
+      const search = params.searchText.trim();
+      searchParams.append('fullName', search);
+      searchParams.append('email', search);
+      searchParams.append('phone', search);
+    }
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<PaginatedApiResponse<User>>(`/api/users/search?${searchParams.toString()}`);
+    return response.data;
+  }
+
+  /**
+   * Get active users with pagination and sorting
+   */
+  async getActive(params?: PageRequest): Promise<PaginatedApiResponse<User>> {
+    const searchParams = new URLSearchParams();
+    
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+
+    const anyParams = params as any;
+    let sortBy: string | undefined;
+    let sortDir: string | undefined;
+    if (params?.sort) {
+      const [field, direction] = params.sort.split(',');
+      sortBy = field;
+      sortDir = direction || 'desc';
+    } else if (anyParams?.sortField || anyParams?.sortDirection) {
+      sortBy = anyParams.sortField;
+      sortDir = anyParams.sortDirection;
+    }
+    if (sortBy) searchParams.append('sortBy', sortBy);
+    if (sortDir) searchParams.append('sortDir', sortDir);
+
+    const response = await apiClient.get<PaginatedApiResponse<User>>(`/api/users/active?${searchParams.toString()}`);
     return response.data;
   }
 

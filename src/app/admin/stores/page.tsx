@@ -25,13 +25,12 @@ export default function StoresPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingStore, setEditingStore] = useState<UiStore | null>(null);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(12);
+  const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [useLegacy, setUseLegacy] = useState(false);
   const [formData, setFormData] = useState<StoreForm>({
     name: '',
     address: '',
@@ -48,52 +47,46 @@ export default function StoresPage() {
   const loadStores = async () => {
     try {
       setLoading(true);
-      const sortParam = sortField ? `${sortField},${sortDirection}` : 'name,asc';
-      const q = search.trim().toLowerCase();
-
-      // If searching, switch to legacy mode for client-side filtering
-      if (q && !useLegacy) {
-        setUseLegacy(true);
-        setLoading(false);
-        return;
-      }
-      if (!q && useLegacy) {
-        setUseLegacy(false);
-      }
+      const q = search.trim();
       
-      if (useLegacy && q) {
-        const legacy = await storeService.getAllLegacy();
-        if (legacy.success && legacy.data) {
-          let list = legacy.data;
-          // basic search across common fields
-          list = list.filter((s) => (
-            (s.name?.toLowerCase().includes(q)) ||
-            (s.address?.toLowerCase().includes(q)) ||
-            (s.phone?.toLowerCase().includes(q))
+      // For now, use the getAll endpoint with pagination and sorting
+      // Backend doesn't have a search endpoint for stores yet, so we fetch all and filter if needed
+      const response = await storeService.getAll({
+        page: page - 1, // Backend uses 0-based indexing
+        size: q ? 1000 : pageSize, // If searching, get more results to filter client-side
+        sortBy: sortField,
+        sortDir: sortDirection,
+      });
+      
+      if (response.success && response.data) {
+        const data = response.data as any;
+        let storesList = data.content || [];
+        
+        // Client-side search filter if query exists
+        if (q) {
+          const lowerQ = q.toLowerCase();
+          storesList = storesList.filter((s: any) => (
+            (s.name?.toLowerCase().includes(lowerQ)) ||
+            (s.address?.toLowerCase().includes(lowerQ)) ||
+            (s.phone?.toLowerCase().includes(lowerQ))
           ));
-          const total = list.length;
-          const startIndex = Math.max(0, (page - 1) * Math.max(1, pageSize));
-          const paged = list.slice(startIndex, startIndex + pageSize);
-          setStores(paged);
+          
+          // Client-side pagination for search results
+          const total = storesList.length;
+          const startIndex = (page - 1) * pageSize;
+          storesList = storesList.slice(startIndex, startIndex + pageSize);
+          setStores(storesList);
           setTotalElements(total);
-          setTotalPages(Math.max(1, Math.ceil(total / Math.max(1, pageSize))));
+          setTotalPages(Math.ceil(total / pageSize));
         } else {
-          setStores([]);
-          setTotalElements(0);
-          setTotalPages(0);
+          setStores(storesList);
+          setTotalElements(data.totalElements || storesList.length);
+          setTotalPages(data.totalPages || 1);
         }
       } else {
-        const response = await storeService.getAll({
-          page: page - 1, // Backend uses 0-based indexing
-          size: pageSize,
-          sort: sortParam
-        });
-        
-        if (response.success && response.data) {
-          setStores(response.data.content || []);
-          setTotalElements(response.data.totalElements);
-          setTotalPages(response.data.totalPages);
-        }
+        setStores([]);
+        setTotalElements(0);
+        setTotalPages(0);
       }
     } catch (error) {
       console.error('Failed to load stores:', error);

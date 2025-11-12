@@ -5,8 +5,162 @@ class CategoryService {
   /**
    * Get all categories
    */
-  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Category>>> {
-    const response = await apiClient.get<ApiResponse<any>>('/api/categories/getall', { params });
+  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc'; sort?: string }): Promise<ApiResponse<PagedResponse<Category>>> {
+    const searchParams = new URLSearchParams();
+    
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    
+    let sortBy = params?.sortBy;
+    let sortDir = params?.sortDir;
+    
+    if (params?.sort) {
+      const [field, direction] = params.sort.split(',');
+      sortBy = field;
+      sortDir = (direction as 'asc' | 'desc') || 'desc';
+    }
+    
+    if (sortBy) searchParams.append('sortBy', sortBy);
+    if (sortDir) searchParams.append('sortDir', sortDir);
+    
+    const response = await apiClient.get<ApiResponse<any>>(`/api/categories/getall?${searchParams.toString()}`);
+    const res = response.data as ApiResponse<any>;
+    let content: any[] = [];
+    if (Array.isArray(res.data)) {
+      content = res.data;
+    } else if (res?.data?.content && Array.isArray(res.data.content)) {
+      content = res.data.content;
+    }
+    // Normalize active flag
+    content = content.map((cat: any) => ({
+      ...cat,
+      isActive: typeof cat.isActive === 'boolean' ? cat.isActive : !!cat.active,
+    }));
+    const paged: PagedResponse<Category> = {
+      content: content as Category[],
+      page: res?.data?.page ?? 0,
+      size: res?.data?.size ?? content.length,
+      totalElements: res?.data?.totalElements ?? content.length,
+      totalPages: res?.data?.totalPages ?? 1,
+      first: res?.data?.first ?? true,
+      last: res?.data?.last ?? true,
+    };
+    return { ...res, data: paged } as ApiResponse<PagedResponse<Category>>;
+  }
+
+  /**
+   * Get all categories (legacy method for backward compatibility)
+   */
+  async getAllLegacy(): Promise<ApiResponse<Category[]>> {
+    const response = await apiClient.get<ApiResponse<any>>('/api/categories/getall');
+    const res = response.data as ApiResponse<any>;
+    let content: any[] = [];
+    if (Array.isArray(res.data)) {
+      content = res.data;
+    } else if (res?.data?.content && Array.isArray(res.data.content)) {
+      content = res.data.content;
+    }
+    // Normalize active flag
+    content = content.map((cat: any) => ({
+      ...cat,
+      isActive: typeof cat.isActive === 'boolean' ? cat.isActive : !!cat.active,
+    }));
+    return { ...res, data: content } as ApiResponse<Category[]>;
+  }
+
+  /**
+   * Search categories with server-side filtering, pagination, and sorting
+   * Backend expects: name (not searchText)
+   */
+  async search(params?: { 
+    searchText?: string;
+    page?: number; 
+    size?: number; 
+    sortBy?: string; 
+    sortDir?: 'asc' | 'desc' 
+  }): Promise<ApiResponse<PagedResponse<Category>>> {
+    const searchParams = new URLSearchParams();
+
+    // Backend expects 'name' parameter, not 'searchText'
+    if (params?.searchText) searchParams.append('name', params.searchText.trim());
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<ApiResponse<any>>(`/api/categories/search?${searchParams.toString()}`);
+    const res = response.data as ApiResponse<any>;
+    let content: any[] = [];
+    if (Array.isArray(res.data)) {
+      content = res.data;
+    } else if (res?.data?.content && Array.isArray(res.data.content)) {
+      content = res.data.content;
+    }
+    // Normalize active flag
+    content = content.map((cat: any) => ({
+      ...cat,
+      isActive: typeof cat.isActive === 'boolean' ? cat.isActive : !!cat.active,
+    }));
+    const paged: PagedResponse<Category> = {
+      content: content as Category[],
+      page: res?.data?.page ?? 0,
+      size: res?.data?.size ?? content.length,
+      totalElements: res?.data?.totalElements ?? content.length,
+      totalPages: res?.data?.totalPages ?? 1,
+      first: res?.data?.first ?? true,
+      last: res?.data?.last ?? true,
+    };
+    return { ...res, data: paged } as ApiResponse<PagedResponse<Category>>;
+  }
+
+  /**
+   * Get active categories with pagination
+   */
+  async getActive(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Category>>> {
+    const searchParams = new URLSearchParams();
+    
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<ApiResponse<any>>(`/api/categories/active?${searchParams.toString()}`);
+    const res = response.data as ApiResponse<any>;
+    let content: any[] = [];
+    if (Array.isArray(res.data)) {
+      content = res.data;
+    } else if (res?.data?.content && Array.isArray(res.data.content)) {
+      content = res.data.content;
+    }
+    // Normalize active flag
+    content = content.map((cat: any) => ({
+      ...cat,
+      isActive: typeof cat.isActive === 'boolean' ? cat.isActive : !!cat.active,
+    }));
+    const paged: PagedResponse<Category> = {
+      content: content as Category[],
+      page: res?.data?.page ?? 0,
+      size: res?.data?.size ?? content.length,
+      totalElements: res?.data?.totalElements ?? content.length,
+      totalPages: res?.data?.totalPages ?? 1,
+      first: res?.data?.first ?? true,
+      last: res?.data?.last ?? true,
+    };
+    return { ...res, data: paged } as ApiResponse<PagedResponse<Category>>;
+  }
+
+  /**
+   * Get inactive categories with pagination
+   */
+  async getInactiveCategories(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Category>>> {
+    const searchParams = new URLSearchParams();
+    
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<ApiResponse<any>>(`/api/categories/inactive?${searchParams.toString()}`);
     const res = response.data as ApiResponse<any>;
     let content: any[] = [];
     if (Array.isArray(res.data)) {
@@ -129,7 +283,7 @@ class CategoryService {
   }
 
   /**
-   * Get inactive categories (Admin only)
+   * Get inactive categories (Admin only) - Legacy method
    */
   async getInactive(): Promise<ApiResponse<Category[]>> {
     const response = await this.getAll();
@@ -137,13 +291,10 @@ class CategoryService {
       const inactiveCategories = (response.data.content || []).filter((cat: Category) => !cat.isActive);
       return {
         ...response,
-        data: {
-          ...response.data,
-          content: inactiveCategories
-        }
+        data: inactiveCategories
       };
     }
-    return response;
+    return { ...response, data: [] };
   }
 
   /**

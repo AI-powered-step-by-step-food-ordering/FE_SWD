@@ -23,7 +23,6 @@ export default function UsersPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [useLegacy, setUseLegacy] = useState(false);
   const [formData, setFormData] = useState<UserCreateRequest>({
     fullName: '',
     email: '',
@@ -35,7 +34,7 @@ export default function UsersPage() {
 
   useEffect(() => {
     loadUsers();
-  }, [showInactive, page, pageSize, search, sortField, sortDirection, useLegacy]);
+  }, [showInactive, page, pageSize, search, sortField, sortDirection]);
 
   const loadUsers = async () => {
     try {
@@ -44,55 +43,33 @@ export default function UsersPage() {
       const hasSearch = search.trim().length > 0;
       const sortParam = `${sortField},${sortDirection}`;
 
-      // When searching, switch to legacy fetch and filter client-side
+      // Use server-side search endpoint when searching
       if (hasSearch) {
-        setUseLegacy(true);
-        const response = await userService.getAllLegacy();
-        const allUsers = response.data || [];
-
-        const q = search.trim().toLowerCase();
-        const matchesQuery = (u: any) => {
-          const fields = [
-            u.fullName,
-            u.email,
-            u.phone,
-            u.role,
-            u.status,
-            u.goalCode,
-          ];
-          return fields.some((f) => String(f ?? '').toLowerCase().includes(q));
-        };
-
-        // Apply inactive/active filter similar to server endpoints
-        const filteredByStatus = showInactive
-          ? allUsers.filter((u: any) => u.status && u.status !== 'ACTIVE')
-          : allUsers.filter((u: any) => u.status === 'ACTIVE');
-
-        const filtered = filteredByStatus.filter(matchesQuery);
-
-        // Client-side sort
-        const [field, direction] = sortParam.split(',');
-        const sorted = [...filtered].sort((a: any, b: any) => {
-          const av = a[field as keyof typeof a];
-          const bv = b[field as keyof typeof b];
-          const aVal = av === undefined || av === null ? '' : String(av).toLowerCase();
-          const bVal = bv === undefined || bv === null ? '' : String(bv).toLowerCase();
-          if (aVal < bVal) return direction === 'asc' ? -1 : 1;
-          if (aVal > bVal) return direction === 'asc' ? 1 : -1;
-          return 0;
+        const response = await userService.search({
+          searchText: search.trim(),
+          page: page - 1,
+          size: pageSize,
+          sortBy: sortField,
+          sortDir: sortDirection,
         });
-
-        // Client-side paginate
-        const startIndex = (page - 1) * pageSize;
-        const paged = sorted.slice(startIndex, startIndex + pageSize);
-        setUsers(paged);
-        setTotalElements(sorted.length);
-        setTotalPages(Math.ceil(sorted.length / pageSize));
+        
+        // Apply active/inactive filter on results if needed
+        let filteredUsers = response.data.content || [];
+        if (showInactive) {
+          filteredUsers = filteredUsers.filter((u: any) => u.status && u.status !== 'ACTIVE');
+        } else {
+          filteredUsers = filteredUsers.filter((u: any) => u.status === 'ACTIVE');
+        }
+        
+        setUsers(filteredUsers);
+        // Recalculate pagination for filtered results
+        const totalFiltered = filteredUsers.length;
+        setTotalElements(totalFiltered);
+        setTotalPages(Math.ceil(totalFiltered / pageSize));
         return;
       }
 
-      // Not searching: use paginated endpoints; do not pass server-side search
-      setUseLegacy(false);
+      // Use server-side active/inactive endpoints with pagination
       if (showInactive) {
         const response = await userService.getInactive({
           page: page - 1,
@@ -103,7 +80,7 @@ export default function UsersPage() {
         setTotalElements(response.data.totalElements || 0);
         setTotalPages(response.data.totalPages || 0);
       } else {
-        const response = await userService.getAll({
+        const response = await userService.getActive({
           page: page - 1,
           size: pageSize,
           sort: sortParam,

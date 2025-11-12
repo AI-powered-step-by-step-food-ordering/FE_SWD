@@ -34,7 +34,7 @@ export default function PromotionsPage() {
   const [editingPromotion, setEditingPromotion] = useState<UiPromotion | null>(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(12);
+  const [pageSize, setPageSize] = useState(10);
   const [formData, setFormData] = useState<PromotionForm>({
     code: '',
     name: '',

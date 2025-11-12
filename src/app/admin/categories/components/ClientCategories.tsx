@@ -42,7 +42,6 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
   const [totalPages, setTotalPages] = useState(0);
   const [sortField, setSortField] = useState<string>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [useLegacy, setUseLegacy] = useState(false);
 
   useEffect(() => {
     loadCategories();
@@ -51,51 +50,53 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
   const loadCategories = async () => {
     try {
       setLoading(true);
-      const sortParam = `${sortField},${sortDirection}`;
-      const q = search.trim().toLowerCase();
+      const q = search.trim();
 
-      if (q && !useLegacy) {
-        setUseLegacy(true);
-        setLoading(false);
-        return;
-      }
-      if (!q && useLegacy) {
-        setUseLegacy(false);
-      }
+      // Use server-side search when there's a search query
+      if (q) {
+        const response = await categoryService.search({
+          searchText: q,
+          page: page - 1,
+          size: pageSize,
+          sortBy: sortField,
+          sortDir: sortDirection,
+        });
 
-      if (useLegacy && q) {
-        const legacy = await categoryService.getAllLegacy();
-        if (legacy.success && legacy.data) {
-          let list = legacy.data;
-          list = showInactive ? list.filter((c) => !c.isActive) : list.filter((c) => c.isActive);
-          list = list.filter((c) => (
-            (c.name?.toLowerCase().includes(q)) ||
-            (c.kind?.toLowerCase().includes(q))
-          ));
-          const total = list.length;
-          const startIndex = Math.max(0, (page - 1) * Math.max(1, pageSize));
-          const paged = list.slice(startIndex, startIndex + pageSize);
-          setCategories(paged);
-          setTotalElements(total);
-          setTotalPages(Math.max(1, Math.ceil(total / Math.max(1, pageSize))));
+        if (response.success && response.data) {
+          const { content, totalElements: total, totalPages: pages } = response.data;
+          // Apply active/inactive filter on search results
+          const filteredCategories = showInactive 
+            ? content.filter(cat => !cat.isActive)
+            : content.filter(cat => cat.isActive);
+          setCategories(filteredCategories);
+          // Recalculate pagination for filtered results
+          const totalFiltered = filteredCategories.length;
+          setTotalElements(totalFiltered);
+          setTotalPages(Math.ceil(totalFiltered / pageSize));
         } else {
           setCategories([]);
           setTotalElements(0);
           setTotalPages(0);
         }
       } else {
-        const response = await categoryService.getAll({
-          page: page - 1,
-          size: pageSize,
-          sort: sortParam,
-        });
+        // Use server-side active/inactive endpoints with pagination
+        const response = showInactive 
+          ? await categoryService.getInactiveCategories({
+              page: page - 1,
+              size: pageSize,
+              sortBy: sortField,
+              sortDir: sortDirection,
+            })
+          : await categoryService.getActive({
+              page: page - 1,
+              size: pageSize,
+              sortBy: sortField,
+              sortDir: sortDirection,
+            });
 
         if (response.success && response.data) {
           const { content, totalElements: total, totalPages: pages } = response.data;
-          const filteredCategories = showInactive 
-            ? content.filter(cat => !cat.isActive)
-            : content.filter(cat => cat.isActive);
-          setCategories(filteredCategories);
+          setCategories(content);
           setTotalElements(total);
           setTotalPages(pages);
         } else {

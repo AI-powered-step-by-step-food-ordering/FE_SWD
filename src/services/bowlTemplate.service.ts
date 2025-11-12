@@ -13,7 +13,53 @@ class BowlTemplateService {
    * Get all bowl templates
    */
   async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<BowlTemplate>>> {
-    const response = await apiClient.get<ApiResponse<PagedResponse<BowlTemplate>>>('/api/bowl_templates/getall', { params });
+    const searchParams = new URLSearchParams();
+    
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+    
+    const response = await apiClient.get<ApiResponse<PagedResponse<BowlTemplate>>>(`/api/bowl_templates/getall?${searchParams.toString()}`);
+    return response.data;
+  }
+
+  /**
+   * Search bowl templates with server-side filtering, pagination, and sorting
+   * Backend expects: name (not searchText)
+   */
+  async search(params?: { 
+    searchText?: string;
+    page?: number; 
+    size?: number; 
+    sortBy?: string; 
+    sortDir?: 'asc' | 'desc' 
+  }): Promise<ApiResponse<PagedResponse<BowlTemplate>>> {
+    const searchParams = new URLSearchParams();
+
+    // Backend expects 'name' parameter, not 'searchText'
+    if (params?.searchText) searchParams.append('name', params.searchText.trim());
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<ApiResponse<PagedResponse<BowlTemplate>>>(`/api/bowl_templates/search?${searchParams.toString()}`);
+    return response.data;
+  }
+
+  /**
+   * Get active bowl templates with pagination
+   */
+  async getActive(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<BowlTemplate>>> {
+    const searchParams = new URLSearchParams();
+    
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<ApiResponse<PagedResponse<BowlTemplate>>>(`/api/bowl_templates/active?${searchParams.toString()}`);
     return response.data;
   }
 

@@ -26,6 +26,94 @@ class PromotionService {
   }
 
   /**
+   * Search promotions with server-side filtering, pagination, and sorting
+   * Backend expects: name, types (not searchText)
+   */
+  async search(params?: { 
+    searchText?: string;
+    types?: string[];
+    page?: number; 
+    size?: number; 
+    sortBy?: string; 
+    sortDir?: 'asc' | 'desc' 
+  }): Promise<ApiResponse<import('@/types/api.types').PagedResponse<Promotion>>> {
+    const searchParams = new URLSearchParams();
+
+    // Backend expects 'name' parameter, not 'searchText'
+    if (params?.searchText) searchParams.append('name', params.searchText.trim());
+    if (params?.types && params.types.length > 0) {
+      params.types.forEach(type => searchParams.append('types', type));
+    }
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<any>(`/api/promotions/search?${searchParams.toString()}`);
+    return response.data;
+  }
+
+  /**
+   * Get all promotions with pagination
+   */
+  async getAllPaged(params?: { 
+    page?: number; 
+    size?: number; 
+    sortBy?: string; 
+    sortDir?: 'asc' | 'desc' 
+  }): Promise<ApiResponse<import('@/types/api.types').PagedResponse<Promotion>>> {
+    const searchParams = new URLSearchParams();
+
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<any>(`/api/promotions/getall?${searchParams.toString()}`);
+    return response.data;
+  }
+
+  /**
+   * Get active promotions with pagination
+   */
+  async getActive(params?: { 
+    page?: number; 
+    size?: number; 
+    sortBy?: string; 
+    sortDir?: 'asc' | 'desc' 
+  }): Promise<ApiResponse<import('@/types/api.types').PagedResponse<Promotion>>> {
+    const searchParams = new URLSearchParams();
+
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<any>(`/api/promotions/active?${searchParams.toString()}`);
+    return response.data;
+  }
+
+  /**
+   * Get inactive promotions with pagination
+   */
+  async getInactive(params?: { 
+    page?: number; 
+    size?: number; 
+    sortBy?: string; 
+    sortDir?: 'asc' | 'desc' 
+  }): Promise<ApiResponse<import('@/types/api.types').PagedResponse<Promotion>>> {
+    const searchParams = new URLSearchParams();
+
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<any>(`/api/promotions/inactive?${searchParams.toString()}`);
+    return response.data;
+  }
+
+  /**
    * Get promotion by ID
    */
   async getById(id: string): Promise<ApiResponse<Promotion>> {

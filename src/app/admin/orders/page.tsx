@@ -45,20 +45,49 @@ export default function OrdersPage() {
   const loadOrders = async () => {
     try {
       setLoading(true);
-      const params: any = {
-        page: Math.max(0, page - 1),
-        size: pageSize,
-        sortBy: "createdAt",
-        sortDir: "desc",
-      };
       const q = search.trim();
-      if (q) params.search = q;
-      if (filter !== "ALL") params.status = filter;
-      const response = await orderService.getAll(params);
-      const pageData = response.data as any;
-      const list = pageData?.content || [];
-      setOrders(list as Order[]);
-      setTotal(pageData?.totalElements ?? list.length ?? 0);
+
+      // Use server-side search when there's a search query (userId or storeId)
+      if (q) {
+        const response = await orderService.search({
+          userId: q, // Try searching by userId
+          page: page - 1,
+          size: pageSize,
+          sortBy: "createdAt",
+          sortDir: "desc",
+        });
+
+        const pageData = response.data;
+        let list = pageData?.content || [];
+
+        // Apply status filter if needed
+        if (filter !== "ALL") {
+          list = list.filter((order: Order) => order.status === filter);
+        }
+
+        setOrders(list);
+        // Recalculate pagination for filtered results
+        setTotal(list.length);
+      } else {
+        // Use server-side getAll with pagination
+        const response = await orderService.getAll({
+          page: page - 1,
+          size: pageSize,
+          sortBy: "createdAt",
+          sortDir: "desc",
+        });
+
+        const pageData = response.data;
+        let list = pageData?.content || [];
+
+        // Apply status filter if needed
+        if (filter !== "ALL") {
+          list = list.filter((order: Order) => order.status === filter);
+        }
+
+        setOrders(list);
+        setTotal(pageData?.totalElements ?? list.length ?? 0);
+      }
     } catch (error) {
       console.error("Failed to load orders:", error);
       toast.error("Failed to load orders");
@@ -271,7 +300,7 @@ export default function OrdersPage() {
                     Order ID
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    User ID
+                    Customer Name
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                     Store ID
@@ -321,13 +350,13 @@ export default function OrdersPage() {
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
-                        <div className="font-mono text-sm text-gray-600">
-                          {order.userId?.slice(0, 8) || "N/A"}...
+                        <div className="text-sm text-gray-900">
+                          {order.userFullName || "N/A"}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
-                        <div className="font-mono text-sm text-gray-600">
-                          {order.storeId?.slice(0, 8) || "N/A"}...
+                        <div className="text-sm text-gray-900">
+                          {order.storeId || "N/A"}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
@@ -444,6 +473,14 @@ export default function OrdersPage() {
                     <div>
                       <span className="text-sm text-gray-600">Order ID:</span>
                       <p className="font-mono text-sm">{selectedOrder.id}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600">
+                        Customer Name:
+                      </span>
+                      <p className="text-sm font-medium">
+                        {selectedOrder.userFullName || "N/A"}
+                      </p>
                     </div>
                     <div>
                       <span className="text-sm text-gray-600">User ID:</span>

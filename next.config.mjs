@@ -37,6 +37,16 @@ const nextConfig = {
         hostname: "example.com",
         port: "",
       },
+      {
+        protocol: "https",
+        hostname: "images.squarespace-cdn.com",
+        port: "",
+      },
+      {
+        protocol: "https",
+        hostname: "media.loveitopcdn.com",
+        port: "",
+      },
       // Added for external demo/example images
     ],
   },

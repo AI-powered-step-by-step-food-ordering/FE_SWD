@@ -5,8 +5,39 @@ class OrderService {
   /**
    * Get all orders
    */
-  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc'; search?: string; status?: string }): Promise<ApiResponse<PagedResponse<Order>>> {
-    const response = await apiClient.get<ApiResponse<PagedResponse<Order>>>('/api/orders/getall', { params });
+  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Order>>> {
+    const searchParams = new URLSearchParams();
+    
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+    
+    const response = await apiClient.get<ApiResponse<PagedResponse<Order>>>(`/api/orders/getall?${searchParams.toString()}`);
+    return response.data;
+  }
+
+  /**
+   * Search orders with server-side filtering, pagination, and sorting
+   */
+  async search(params?: { 
+    userId?: string;
+    storeId?: string;
+    page?: number; 
+    size?: number; 
+    sortBy?: string; 
+    sortDir?: 'asc' | 'desc' 
+  }): Promise<ApiResponse<PagedResponse<Order>>> {
+    const searchParams = new URLSearchParams();
+
+    if (params?.userId) searchParams.append('userId', params.userId);
+    if (params?.storeId) searchParams.append('storeId', params.storeId);
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<ApiResponse<PagedResponse<Order>>>(`/api/orders/search?${searchParams.toString()}`);
     return response.data;
   }
 
