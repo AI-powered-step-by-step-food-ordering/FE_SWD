@@ -18,8 +18,8 @@ const FirebaseImageUpload = dynamic(() => import('@/components/shared/FirebaseIm
 
 export default function StoresPage() {
   useRequireAdmin();
-  type UiStore = Store & { isActive?: boolean; openingHours?: string; imageUrl?: string };
-  type StoreForm = StoreRequest & { isActive: boolean; openingHours?: string; imageUrl?: string };
+  type UiStore = Store & { active?: boolean; openingHours?: string; imageUrl?: string };
+  type StoreForm = StoreRequest & { active: boolean; openingHours?: string; imageUrl?: string };
   const [stores, setStores] = useState<UiStore[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -35,7 +35,7 @@ export default function StoresPage() {
     name: '',
     address: '',
     phone: '',
-    isActive: true,
+    active: true,
     openingHours: '',
     imageUrl: '',
   });
@@ -156,7 +156,7 @@ export default function StoresPage() {
       name: store.name,
       address: store.address,
       phone: store.phone,
-      isActive: store.isActive ?? true,
+      active: store.active ?? true,
       openingHours: store.openingHours || '',
       imageUrl: store.imageUrl || '',
     });
@@ -169,7 +169,7 @@ export default function StoresPage() {
       name: '',
       address: '',
       phone: '',
-      isActive: true,
+      active: true,
       openingHours: '',
       imageUrl: '',
     });
@@ -202,8 +202,8 @@ export default function StoresPage() {
               <option value="name-desc">Name (Z-A)</option>
               <option value="address-asc">Address (A-Z)</option>
               <option value="address-desc">Address (Z-A)</option>
-              <option value="isActive-desc">Active First</option>
-              <option value="isActive-asc">Inactive First</option>
+              <option value="active-desc">Active First</option>
+              <option value="active-asc">Inactive First</option>
             </select>
             <AdminSearchBar value={search} onChange={handleSearch} placeholder="Tìm cửa hàng..." />
           <button
@@ -253,9 +253,9 @@ export default function StoresPage() {
                     <div className="flex items-center gap-2 mb-2">
                       <h3 className="text-lg font-semibold text-gray-900">{store.name}</h3>
                       <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
-                        store.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        store.active === true ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                       }`}>
-                        {store.isActive ? 'Active' : 'Inactive'}
+                        {store.active === true ? 'Active' : 'Inactive'}
                       </span>
                     </div>
                   </div>
@@ -387,12 +387,12 @@ export default function StoresPage() {
                     <div className="flex items-center">
                       <input
                         type="checkbox"
-                        id="isActive"
-                        checked={formData.isActive}
-                        onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                        id="active"
+                        checked={formData.active}
+                        onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
                         className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
                       />
-                      <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
+                      <label htmlFor="active" className="ml-2 block text-sm text-gray-900">
                         Active
                       </label>
                     </div>

@@ -118,14 +118,14 @@ export interface Category {
   name: string;
   kind: string;
   displayOrder: number;
-  isActive: boolean;
+  active?: boolean; // Backend uses 'active' field
 }
 
 export interface CategoryRequest {
   name: string;
   kind: string;
   displayOrder: number;
-  isActive: boolean;
+  active: boolean; // Active/Inactive status
 }
 
 // Ingredient Types
@@ -136,6 +136,7 @@ export interface Ingredient {
   unitPrice: number;
   categoryId: string; // UUID format: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
   imageUrl: string;
+  active?: boolean; // Active/Inactive status (from backend DTO)
   // Additional fields for compatibility
   id?: string; // Optional for compatibility
   description?: string; // Optional for compatibility
@@ -161,15 +162,15 @@ export interface BowlTemplate {
   id: string;
   name: string;
   description: string;
-  isActive?: boolean;
-  active?: boolean; // backend may return 'active'
+  imageUrl?: string;
+  active?: boolean; // Backend uses 'active' field
 }
 
 export interface BowlTemplateRequest {
   name: string;
   description: string;
-  isActive?: boolean;
-  active?: boolean; // backend may expect 'active'
+  imageUrl?: string;
+  active?: boolean; // Active/Inactive status
 }
 
 // Template Step Types
@@ -198,12 +199,14 @@ export interface Store {
   name: string;
   address: string;
   phone: string;
+  active?: boolean; // Backend uses 'active' field
 }
 
 export interface StoreRequest {
   name: string;
   address: string;
   phone: string;
+  active?: boolean; // Active/Inactive status (may be ignored by backend)
 }
 
 // Order Types
@@ -290,7 +293,7 @@ export interface Promotion {
   percentOff: number;
   amountOff: number;
   minOrderValue: number;
-  isActive: boolean;
+  active?: boolean; // Backend uses 'active' field
   startsAt?: string;
   endsAt?: string;
   maxRedemptions?: number;
@@ -308,7 +311,7 @@ export interface PromotionRequest {
   endsAt?: string;
   maxRedemptions?: number;
   perOrderLimit?: number;
-  isActive: boolean;
+  active: boolean; // Active/Inactive status
 }
 
 // Payment Transaction Types

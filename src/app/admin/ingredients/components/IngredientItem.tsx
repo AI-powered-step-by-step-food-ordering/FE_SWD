@@ -10,9 +10,14 @@ type Props = {
   ingredient: Ingredient;
   onDelete: (id: string) => void;
   onUpdate?: (ing: Ingredient) => void;
+  onSoftDelete?: (id: string) => void;
+  onRestore?: (id: string) => void;
 };
 
-export default function IngredientItem({ ingredient, onDelete, onUpdate }: Props) {
+export default function IngredientItem({ ingredient, onDelete, onUpdate, onSoftDelete, onRestore }: Props) {
+  // Debug: Log active value (backend uses 'active' field, not 'isActive')
+  console.log('Ingredient:', ingredient.name, 'active:', ingredient.active, 'type:', typeof ingredient.active);
+  
   return (
     <div className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
       {ingredient.imageUrl ? (
@@ -48,19 +53,47 @@ export default function IngredientItem({ ingredient, onDelete, onUpdate }: Props
           </div>
         </div>
 
+        {/* Status Badge */}
+        {ingredient.active !== undefined && (
+          <div className="mb-3">
+            <span className={`inline-block rounded-full px-2 py-1 text-xs font-semibold ${
+              ingredient.active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+            }`}>
+              {ingredient.active ? "Active" : "Inactive"}
+            </span>
+          </div>
+        )}
+
         <div className="flex gap-2">
-          <button
-            onClick={() => onUpdate?.(ingredient)}
-            className="flex-1 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
-          >
-            Edit
-          </button>
-          <button
-            onClick={() => onDelete(ingredient.id!)}
-            className="flex-1 px-3 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors text-sm font-medium"
-          >
-            Delete
-          </button>
+          {ingredient.active === false ? (
+            // Inactive: Only show Restore button
+            onRestore && (
+              <button
+                onClick={() => onRestore(ingredient.id!)}
+                className="flex-1 px-3 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium"
+              >
+                Restore
+              </button>
+            )
+          ) : (
+            // Active: Show Edit + Soft Delete buttons
+            <>
+              <button
+                onClick={() => onUpdate?.(ingredient)}
+                className="flex-1 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+              >
+                Edit
+              </button>
+              {onSoftDelete && (
+                <button
+                  onClick={() => onSoftDelete(ingredient.id!)}
+                  className="flex-1 px-3 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors text-sm font-medium"
+                >
+                  Soft Delete
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

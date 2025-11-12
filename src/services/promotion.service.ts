@@ -161,7 +161,7 @@ class PromotionService {
     if (response.success && response.data) {
       const now = new Date();
       return response.data.filter((promo) => {
-        if (!promo.isActive) return false;
+        if (promo.active === false) return false;
         if (promo.startsAt && new Date(promo.startsAt) > now) return false;
         if (promo.endsAt && new Date(promo.endsAt) < now) return false;
         return true;

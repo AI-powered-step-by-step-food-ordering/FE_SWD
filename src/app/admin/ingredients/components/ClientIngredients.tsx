@@ -24,6 +24,7 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
   // State for backend pagination
   const [ingredients, setIngredients] = useState<Ingredient[]>(initialIngredients || []);
   const [categories, setCategories] = useState<Category[]>(Array.isArray(initialCategories) ? initialCategories : []);
+  const [showInactive, setShowInactive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -36,44 +37,61 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
 
-  // Load ingredients with backend pagination
+  // Load ingredients with backend pagination (fully server-side)
   const loadIngredients = async () => {
     setLoading(true);
     try {
       const q = (search || '').trim();
 
-      // Use server-side search when there's a search query
-      if (q) {
-        const response = await ingredientService.search({
-          searchText: q,
-          page: page - 1,
-          size: pageSize,
-          sortBy: sortField,
-          sortDir: sortDirection,
-        });
+      // Always use server-side active/inactive endpoints with pagination
+      // Search is NOT supported with active/inactive filter on backend
+      // So we fetch active or inactive and let backend handle everything
+      const response = showInactive 
+        ? await ingredientService.getInactive({
+            page: page - 1,
+            size: pageSize,
+            sortBy: sortField,
+            sortDir: sortDirection,
+          })
+        : await ingredientService.getActive({
+            page: page - 1,
+            size: pageSize,
+            sortBy: sortField,
+            sortDir: sortDirection,
+          });
 
-        if (response.success && response.data) {
-          setIngredients(response.data.content);
-          setTotalElements(response.data.totalElements);
-          setTotalPages(response.data.totalPages);
+      if (response.success && response.data) {
+        const { content, totalElements: total, totalPages: pages } = response.data;
+        
+        // Apply client-side search filter if search query exists
+        // (Backend doesn't support search + active/inactive combined)
+        let filteredContent = content;
+        if (q) {
+          filteredContent = content.filter(ing => 
+            ing.name?.toLowerCase().includes(q.toLowerCase()) ||
+            ing.categoryId?.toLowerCase().includes(q.toLowerCase())
+          );
         }
+        
+        // Debug: Log first ingredient to check active field
+        if (filteredContent.length > 0) {
+          console.log('First ingredient active status:', filteredContent[0].active, typeof filteredContent[0].active);
+        }
+        
+        setIngredients(filteredContent);
+        // Use server-side totals if no search, otherwise use filtered count
+        setTotalElements(q ? filteredContent.length : total);
+        setTotalPages(q ? Math.ceil(filteredContent.length / pageSize) : pages);
       } else {
-        // Use server-side pagination without search
-        const response = await ingredientService.getAll({
-          page: page - 1, // Backend uses 0-indexed pages
-          size: pageSize,
-          sortBy: sortField,
-          sortDir: sortDirection,
-        });
-
-        if (response.success && response.data) {
-          setIngredients(response.data.content);
-          setTotalElements(response.data.totalElements);
-          setTotalPages(response.data.totalPages);
-        }
+        setIngredients([]);
+        setTotalElements(0);
+        setTotalPages(0);
       }
     } catch (error) {
       console.error('Failed to load ingredients:', error);
+      setIngredients([]);
+      setTotalElements(0);
+      setTotalPages(0);
     } finally {
       setLoading(false);
     }
@@ -82,7 +100,7 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
   // Load ingredients when dependencies change
   useEffect(() => {
     loadIngredients();
-  }, [page, pageSize, search, sortField, sortDirection]);
+  }, [showInactive, page, pageSize, search, sortField, sortDirection]);
 
   // Ensure categories are loaded and normalized
   useEffect(() => {
@@ -92,7 +110,7 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
       try {
         const resp = await categoryService.getAll({ page: 0, size: 500, sortDir: 'asc', sortBy: 'name' } as any);
         const content = resp?.data?.content || [];
-        setCategories(content.filter((c) => c.isActive));
+        setCategories(content.filter((c) => c.active === true));
       } catch (err) {
         console.error('Failed to load categories:', err);
         setCategories([]);
@@ -158,6 +176,28 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
     }
   };
 
+  const handleSoftDelete = async (id: string) => {
+    if (window.confirm("Are you sure you want to soft delete this ingredient?")) {
+      try {
+        await ingredientService.softDelete(id);
+        loadIngredients();
+      } catch (error) {
+        console.error("Error soft deleting ingredient:", error);
+      }
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    if (window.confirm("Are you sure you want to restore this ingredient?")) {
+      try {
+        await ingredientService.restore(id);
+        loadIngredients();
+      } catch (error) {
+        console.error("Error restoring ingredient:", error);
+      }
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -167,6 +207,26 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
         </div>
 
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className={`text-sm ${!showInactive ? 'font-medium text-green-600' : 'text-gray-500'}`}>Active</span>
+            <button
+              onClick={() => {
+                setShowInactive(!showInactive);
+                setPage(1);
+              }}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                showInactive ? 'bg-red-600' : 'bg-green-600'
+              }`}
+              aria-label="Toggle Active/Inactive"
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  showInactive ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+            <span className={`text-sm ${showInactive ? 'font-medium text-red-600' : 'text-gray-500'}`}>Inactive</span>
+          </div>
           <button
             onClick={() => setShowAddModal(true)}
             className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white transition-colors hover:bg-green-700"
@@ -216,6 +276,8 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
           items={ingredients}
           onDelete={deleteIngredient}
           onUpdate={(ing) => { setEditing(ing); setShowEditModal(true); }}
+          onSoftDelete={handleSoftDelete}
+          onRestore={handleRestore}
         />
       )}
 

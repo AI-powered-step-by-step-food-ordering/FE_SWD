@@ -32,7 +32,7 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
     name: "",
     kind: "CARB",
     displayOrder: 0,
-    isActive: true,
+    active: true,
     imageUrl: "",
   });
   const [search, setSearch] = useState('');
@@ -66,8 +66,8 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
           const { content, totalElements: total, totalPages: pages } = response.data;
           // Apply active/inactive filter on search results
           const filteredCategories = showInactive 
-            ? content.filter(cat => !cat.isActive)
-            : content.filter(cat => cat.isActive);
+            ? content.filter(cat => cat.active === false)
+            : content.filter(cat => cat.active === true);
           setCategories(filteredCategories);
           // Recalculate pagination for filtered results
           const totalFiltered = filteredCategories.length;
@@ -123,7 +123,7 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
         name: formData.name,
         kind: formData.kind,
         displayOrder: formData.displayOrder ?? 0,
-        isActive: editingCategory ? editingCategory.isActive : true,
+        active: editingCategory ? editingCategory.active : true,
         // UI-only field; backend may accept or ignore
         ...(formData.imageUrl ? { imageUrl: formData.imageUrl } : {}),
       };
@@ -179,7 +179,7 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
       name: category.name,
       kind: category.kind,
       displayOrder: category.displayOrder ?? 0,
-      isActive: category.isActive ?? true,
+      active: category.active ?? true,
       imageUrl: category.imageUrl || "",
     });
     setShowModal(true);
@@ -191,7 +191,7 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
       name: "",
       kind: "CARB",
       displayOrder: 0,
-      isActive: true,
+      active: true,
       imageUrl: "",
     });
   };
@@ -273,8 +273,8 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('kind')}>
                   <div className="flex items-center gap-1">Kind <span className="text-sm">{getSortIcon('kind')}</span></div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('isActive')}>
-                  <div className="flex items-center gap-1">Status <span className="text-sm">{getSortIcon('isActive')}</span></div>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('active')}>
+                  <div className="flex items-center gap-1">Status <span className="text-sm">{getSortIcon('active')}</span></div>
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
               </tr>
@@ -312,9 +312,9 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
                     </td>
                     <td className="whitespace-nowrap px-6 py-4"><div className="text-sm font-medium text-gray-900">{category.name}</div></td>
                     <td className="whitespace-nowrap px-6 py-4"><span className="rounded-full bg-purple-100 px-2 py-1 text-xs font-semibold text-purple-800">{category.kind}</span></td>
-                    <td className="whitespace-nowrap px-6 py-4"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${category.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{category.isActive ? "Active" : "Inactive"}</span></td>
+                    <td className="whitespace-nowrap px-6 py-4"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${category.active === true ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{category.active === true ? "Active" : "Inactive"}</span></td>
                     <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                      {!category.isActive ? (
+                      {category.active === false ? (
                         <button onClick={() => handleRestore(category.id)} className="mr-4 text-green-600 hover:text-green-900">Restore</button>
                       ) : (
                         <>

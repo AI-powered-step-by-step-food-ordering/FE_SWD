@@ -20,7 +20,7 @@ type PromotionForm = {
   discountValue: number;
   startDate: string;
   endDate: string;
-  isActive: boolean;
+  active: boolean;
   usageLimit?: number;
 };
 
@@ -43,7 +43,7 @@ export default function PromotionsPage() {
     discountValue: 0,
     startDate: '',
     endDate: '',
-    isActive: true,
+    active: true,
     usageLimit: undefined,
   });
 
@@ -98,7 +98,7 @@ export default function PromotionsPage() {
         endsAt: toOffsetISOEnd(formData.endDate),
         maxRedemptions: formData.usageLimit,
         perOrderLimit: undefined,
-        isActive: formData.isActive,
+        active: formData.active,
       };
 
       if (editingPromotion) {
@@ -128,7 +128,7 @@ export default function PromotionsPage() {
       discountValue: promotion.type === 'PERCENTAGE' ? (promotion.percentOff ?? 0) : (promotion.amountOff ?? 0),
       startDate: promotion.startsAt?.split('T')[0] || '',
       endDate: promotion.endsAt?.split('T')[0] || '',
-      isActive: promotion.isActive,
+      active: promotion.active ?? true,
       usageLimit: promotion.maxRedemptions,
     });
     setShowModal(true);
@@ -144,7 +144,7 @@ export default function PromotionsPage() {
       discountValue: 0,
       startDate: '',
       endDate: '',
-      isActive: true,
+      active: true,
       usageLimit: undefined,
     });
   };
@@ -155,7 +155,7 @@ export default function PromotionsPage() {
   };
 
   const isPromotionActive = (promotion: Promotion) => {
-    if (!promotion.isActive) return false;
+    if (promotion.active === false) return false;
     const now = new Date();
     const start = promotion.startsAt ? new Date(promotion.startsAt) : undefined;
     const end = promotion.endsAt ? new Date(promotion.endsAt) : undefined;
@@ -412,12 +412,12 @@ export default function PromotionsPage() {
                     <div className="flex items-center">
                       <input
                         type="checkbox"
-                        id="isActive"
-                        checked={formData.isActive}
-                        onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                        id="active"
+                        checked={formData.active}
+                        onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
                         className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
                       />
-                      <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
+                      <label htmlFor="active" className="ml-2 block text-sm text-gray-900">
                         Active
                       </label>
                     </div>

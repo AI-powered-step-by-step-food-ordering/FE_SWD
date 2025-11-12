@@ -47,6 +47,26 @@ const nextConfig = {
         hostname: "media.loveitopcdn.com",
         port: "",
       },
+      {
+        protocol: "https",
+        hostname: "thehappypear.ie",
+        port: "",
+      },
+      {
+        protocol: "https",
+        hostname: "foodbornewellness.com",
+        port: "",
+      },
+      {
+        protocol: "https",
+        hostname: "marleyspoon.com",
+        port: "",
+      },
+      {
+        protocol: "https",
+        hostname: "shredhappens.com",
+        port: "",
+      },
       // Added for external demo/example images
     ],
   },

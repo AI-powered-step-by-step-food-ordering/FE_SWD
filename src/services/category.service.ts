@@ -288,7 +288,7 @@ class CategoryService {
   async getInactive(): Promise<ApiResponse<Category[]>> {
     const response = await this.getAll();
     if (response.data) {
-      const inactiveCategories = (response.data.content || []).filter((cat: Category) => !cat.isActive);
+      const inactiveCategories = (response.data.content || []).filter((cat: Category) => cat.active === false);
       return {
         ...response,
         data: inactiveCategories
@@ -303,7 +303,7 @@ class CategoryService {
   async getActiveCategories(): Promise<Category[]> {
     const response = await this.getAll();
     if (response.data) {
-      return (response.data.content || []).filter((cat: Category) => cat.isActive);
+      return (response.data.content || []).filter((cat: Category) => cat.active === true);
     }
     return [];
   }
@@ -314,7 +314,7 @@ class CategoryService {
   async getCategoriesByKind(kind: string): Promise<Category[]> {
     const response = await this.getAll();
     if (response.data) {
-      return (response.data.content || []).filter((cat: Category) => cat.kind === kind && cat.isActive);
+      return (response.data.content || []).filter((cat: Category) => cat.kind === kind && cat.active === true);
     }
     return [];
   }
