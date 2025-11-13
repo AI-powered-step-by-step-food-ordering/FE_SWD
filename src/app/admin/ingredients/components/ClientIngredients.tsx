@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { Ingredient, Category } from '@/types/api.types';
 import ingredientService from '@/services/ingredient.service';
 import AddIngredientForm from './AddIngredientForm';
@@ -31,10 +31,9 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
   const [useLegacy, setUseLegacy] = useState(false);
 
   // Load ingredients with backend pagination
-  const loadIngredients = async () => {
+  const loadIngredients = useCallback(async () => {
     setLoading(true);
     try {
-      const sortParam = sortField ? `${sortField},${sortDirection}` : undefined;
       const q = (search || '').trim().toLowerCase();
 
       if (q && !useLegacy) {
@@ -65,7 +64,8 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
         const response = await ingredientService.getAll({
           page: page - 1, // Backend uses 0-indexed pages
           size: pageSize,
-          sort: sortParam,
+          sortBy: sortField || undefined,
+          sortDir: sortDirection,
         });
 
         if (response.success && response.data) {
@@ -79,12 +79,12 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, pageSize, search, sortField, sortDirection, useLegacy]);
 
   // Load ingredients when dependencies change
   useEffect(() => {
     loadIngredients();
-  }, [page, pageSize, search, sortField, sortDirection]);
+  }, [loadIngredients]);
 
   // Handle search
   const handleSearch = (searchTerm: string) => {

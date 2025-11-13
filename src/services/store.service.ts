@@ -5,7 +5,7 @@ class StoreService {
   /**
    * Get all stores
    */
-  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Store> | Store[]>> {
+  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Store>>> {
     const response = await apiClient.get<ApiResponse<any>>('/api/stores/getall', { params });
     const res = response.data as ApiResponse<any>;
     // If backend returns paged, keep as-is; if returns array, wrap in synthetic page
@@ -63,6 +63,21 @@ class StoreService {
       `/api/stores/delete/${id}`
     );
     return response.data;
+  }
+
+  /**
+   * Get all stores (legacy method - returns all stores without pagination for client-side filtering)
+   */
+  async getAllLegacy(): Promise<ApiResponse<Store[]>> {
+    const response = await apiClient.get<ApiResponse<any>>('/api/stores/getall');
+    const res = response.data as ApiResponse<any>;
+    let content: any[] = [];
+    if (Array.isArray(res.data)) {
+      content = res.data;
+    } else if (res?.data?.content && Array.isArray(res.data.content)) {
+      content = res.data.content;
+    }
+    return { ...res, data: content as Store[] } as ApiResponse<Store[]>;
   }
 }
 

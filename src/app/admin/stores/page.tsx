@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import ImageWithFallback from '@/components/shared/ImageWithFallback';
 import AdminLayout from '@/components/admin/AdminLayout';
 import dynamic from 'next/dynamic';
@@ -41,14 +41,9 @@ export default function StoresPage() {
     imageUrl: '',
   });
 
-  useEffect(() => {
-    loadStores();
-  }, [page, pageSize, search, sortField, sortDirection]);
-
-  const loadStores = async () => {
+  const loadStores = useCallback(async () => {
     try {
       setLoading(true);
-      const sortParam = sortField ? `${sortField},${sortDirection}` : 'name,asc';
       const q = search.trim().toLowerCase();
 
       // If searching, switch to legacy mode for client-side filtering
@@ -86,13 +81,16 @@ export default function StoresPage() {
         const response = await storeService.getAll({
           page: page - 1, // Backend uses 0-based indexing
           size: pageSize,
-          sort: sortParam
+          sortBy: sortField || 'name',
+          sortDir: sortDirection,
         });
         
         if (response.success && response.data) {
-          setStores(response.data.content || []);
-          setTotalElements(response.data.totalElements);
-          setTotalPages(response.data.totalPages);
+          // Service always returns PagedResponse
+          const pagedData = response.data;
+          setStores((pagedData.content || []) as UiStore[]);
+          setTotalElements(pagedData.totalElements || 0);
+          setTotalPages(pagedData.totalPages || 1);
         }
       }
     } catch (error) {
@@ -101,7 +99,11 @@ export default function StoresPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, pageSize, search, sortField, sortDirection, useLegacy]);
+
+  useEffect(() => {
+    loadStores();
+  }, [loadStores]);
 
   // Handle search
   const handleSearch = (searchTerm: string) => {

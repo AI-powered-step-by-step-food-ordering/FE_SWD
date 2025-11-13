@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import userService from '@/services/user.service';
 import type { User, UserCreateRequest, UserUpdateRequest } from '@/types/api.types';
@@ -33,11 +33,7 @@ export default function UsersPage() {
     role: 'USER',
   });
 
-  useEffect(() => {
-    loadUsers();
-  }, [showInactive, page, pageSize, search, sortField, sortDirection, useLegacy]);
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -118,7 +114,11 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showInactive, page, pageSize, search, sortField, sortDirection]);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   const handleSearch = (value: string) => {
     setSearch(value);

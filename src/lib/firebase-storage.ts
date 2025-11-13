@@ -63,8 +63,31 @@ export async function uploadToFirebase(
         },
         (error) => {
           console.error('Upload error:', error);
+          // Firebase Storage error codes
+          let errorMessage = error.message || 'Upload failed';
+          if (error.code) {
+            switch (error.code) {
+              case 'storage/unauthorized':
+                errorMessage = 'Bạn không có quyền upload ảnh. Vui lòng kiểm tra quyền truy cập Firebase Storage.';
+                break;
+              case 'storage/canceled':
+                errorMessage = 'Upload đã bị hủy.';
+                break;
+              case 'storage/unknown':
+                errorMessage = 'Lỗi không xác định khi upload.';
+                break;
+              case 'storage/quota-exceeded':
+                errorMessage = 'Dung lượng lưu trữ đã hết.';
+                break;
+              case 'storage/unauthenticated':
+                errorMessage = 'Chưa xác thực. Vui lòng đăng nhập lại.';
+                break;
+              default:
+                errorMessage = error.message || `Lỗi: ${error.code}`;
+            }
+          }
           reject({
-            message: error.message || 'Upload failed',
+            message: errorMessage,
             code: error.code,
           } as FirebaseError);
         },
@@ -80,18 +103,20 @@ export async function uploadToFirebase(
               size: uploadTask.snapshot.totalBytes,
               contentType: file.type,
             });
-          } catch (error) {
+          } catch (error: any) {
+            console.error('Error getting download URL:', error);
             reject({
-              message: 'Failed to get download URL',
-              code: 'download-url-error',
+              message: error?.message || 'Failed to get download URL after upload',
+              code: error?.code || 'download-url-error',
             } as FirebaseError);
           }
         }
       );
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Unexpected upload error:', error);
       reject({
-        message: error instanceof Error ? error.message : 'Upload failed',
-        code: 'unknown-error',
+        message: error instanceof Error ? error.message : (error?.message || 'Upload failed'),
+        code: error?.code || 'unknown-error',
       } as FirebaseError);
     }
   });

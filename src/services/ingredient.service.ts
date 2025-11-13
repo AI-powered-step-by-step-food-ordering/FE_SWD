@@ -121,6 +121,21 @@ class IngredientService {
     const response = await this.getByCategoryPaged(categoryId, { page: 0, size: 500 });
     return response.data?.content || [];
   }
+
+  /**
+   * Get all ingredients (legacy method - returns all ingredients without pagination for client-side filtering)
+   */
+  async getAllLegacy(): Promise<ApiResponse<Ingredient[]>> {
+    const response = await apiClient.get<ApiResponse<any>>('/api/ingredients/getall');
+    const res = response.data as ApiResponse<any>;
+    let content: any[] = [];
+    if (Array.isArray(res.data)) {
+      content = res.data;
+    } else if (res?.data?.content && Array.isArray(res.data.content)) {
+      content = res.data.content;
+    }
+    return { ...res, data: content as Ingredient[] } as ApiResponse<Ingredient[]>;
+  }
 }
 
 const ingredientService = new IngredientService();

@@ -49,7 +49,7 @@ export default function OrderTrackingPage() {
     } finally {
       setLoading(false);
     }
-  }, [orderId]);
+  }, [orderId, FETCH_PAYMENTS]);
 
   useEffect(() => {
     if (orderId) {
@@ -127,7 +127,8 @@ export default function OrderTrackingPage() {
   };
 
   const canCancelOrder = (status: string) => {
-    return status === 'DRAFT' || status === 'CONFIRMED';
+    // Only allow cancel for DRAFT orders, not for CONFIRMED or other statuses
+    return status === 'DRAFT';
   };
 
   if (loading) {

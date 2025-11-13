@@ -123,7 +123,7 @@ export default function OrderHistoryPage() {
       } catch {}
     };
     if (paginatedOrders.length) fetchMethods();
-  }, [paginatedOrders]);
+  }, [paginatedOrders, FETCH_PAYMENT_METHODS]);
 
   if (isLoading) {
     return (

@@ -32,11 +32,46 @@ function PaymentResultContent() {
   };
 
   useEffect(() => {
-    const appTransId = searchParams.get('appTransId') || searchParams.get('apptransid');
-    const paymentTransactionId = searchParams.get('paymentTransactionId') || searchParams.get('payment_transaction_id');
+    // Get params from URL first
+    let appTransId = searchParams.get('appTransId') || searchParams.get('apptransid');
+    let paymentTransactionId = searchParams.get('paymentTransactionId') || searchParams.get('payment_transaction_id');
     const statusParam = (searchParams.get('status') || '').toLowerCase();
     const messageParam = searchParams.get('message') || '';
-    const orderId = searchParams.get('orderId') || '';
+    let orderId = searchParams.get('orderId') || '';
+
+    // If no params in URL, try to get from localStorage (ZaloPay redirect may not include params)
+    if (!appTransId && !paymentTransactionId && !orderId && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('zalopay_pending_payment');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          // Only use if stored within last 30 minutes (payment should complete quickly)
+          if (parsed.timestamp && Date.now() - parsed.timestamp < 30 * 60 * 1000) {
+            appTransId = appTransId || parsed.appTransId;
+            paymentTransactionId = paymentTransactionId || parsed.paymentTransactionId;
+            orderId = orderId || parsed.orderId;
+          } else {
+            // Clear old stored data
+            localStorage.removeItem('zalopay_pending_payment');
+          }
+        }
+      } catch (e) {
+        console.error('Error reading localStorage:', e);
+      }
+    }
+
+    // Check if this is a ZaloPay redirect with embed_data (ZaloPay may pass orderId in embed_data)
+    if (!orderId && typeof window !== 'undefined') {
+      // ZaloPay sometimes includes orderId in the URL or we can extract from other sources
+      const urlParams = new URLSearchParams(window.location.search);
+      // Try to find orderId in any param
+      for (const [key, value] of urlParams.entries()) {
+        if (key.toLowerCase().includes('order') && value) {
+          orderId = value;
+          break;
+        }
+      }
+    }
 
     const checkStatus = async () => {
       // If BE already decided success/fail and redirected with a status param, honor it
@@ -63,6 +98,11 @@ function PaymentResultContent() {
 
       setStatus('loading');
       try {
+        // Clear stored payment info once we start checking
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('zalopay_pending_payment');
+        }
+
         if (paymentTransactionId) {
           const res = await zaloPayService.updateStatus(paymentTransactionId);
           if (res.success) {
@@ -111,6 +151,20 @@ function PaymentResultContent() {
             setStatus(paid ? 'success' : 'failed');
             setMessage(res.message || (paid ? 'Payment successful' : 'Payment failed'));
             try {
+              // Try to find payment transaction by appTransId to get orderId
+              if (!orderId) {
+                // Query recent payments for this user to find the order
+                const payments = await paymentService.getAll();
+                if (payments.success && payments.data) {
+                  const recentPayments = Array.isArray(payments.data) ? payments.data : [];
+                  const matchingPayment = recentPayments.find((p: any) => 
+                    p.providerTxnId === appTransId || p.id === paymentTransactionId
+                  );
+                  if (matchingPayment?.orderId) {
+                    orderId = matchingPayment.orderId;
+                  }
+                }
+              }
               if (orderId) {
                 const ord = await orderService.getById(orderId);
                 if (ord?.success && ord.data) setOrder(ord.data);
@@ -129,8 +183,45 @@ function PaymentResultContent() {
           return;
         }
 
+        // If we have orderId but no transaction info, try to find payment for this order
+        if (orderId && !paymentTransactionId && !appTransId) {
+          try {
+            const ord = await orderService.getById(orderId);
+            if (ord?.success && ord.data) {
+              setOrder(ord.data);
+              // Try to find payment transaction for this order
+              const payments = await paymentService.getByOrderId(orderId);
+              if (payments.success && payments.data) {
+                const orderPayments = Array.isArray(payments.data) ? payments.data : [];
+                const orderPayment = orderPayments.find((p: any) => p.method === 'ZALOPAY');
+                if (orderPayment) {
+                  setPaymentTxn(orderPayment);
+                  if (orderPayment.providerTxnId) {
+                    appTransId = orderPayment.providerTxnId;
+                    paymentTransactionId = orderPayment.id;
+                    // Retry check with found transaction ID
+                    if (paymentTransactionId) {
+                      const res = await zaloPayService.updateStatus(paymentTransactionId);
+                      if (res.success) {
+                        const paid = isZaloSuccess((res as any).data);
+                        setStatus(paid ? 'success' : 'failed');
+                        setMessage(res.message || (paid ? 'Payment successful' : 'Payment failed'));
+                        return;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            // If order exists but payment status unknown, assume checking
+            setStatus('loading');
+            setMessage('Checking payment status...');
+            return;
+          } catch {}
+        }
+
         setStatus('failed');
-        setMessage('Missing transaction identifiers');
+        setMessage('Missing transaction identifiers. Please check your order history or contact support.');
       } catch (e: any) {
         setStatus('failed');
         setMessage(e?.message || 'Unable to verify payment');

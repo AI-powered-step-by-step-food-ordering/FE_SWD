@@ -78,20 +78,42 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
+    // Detect network errors (no response received)
+    const isNetworkError = !error.response && error.message === 'Network Error';
+    
     // Log error for debugging (dev only) - stringify to avoid "{}" in some consoles
     if (process.env.NODE_ENV !== 'production') {
       try {
         const snapshot: any = {
           url: originalRequest?.url,
           method: originalRequest?.method,
+          baseURL: originalRequest?.baseURL || API_BASE_URL,
           status: error.response?.status,
           message: error.message,
         };
+        
+        if (isNetworkError) {
+          snapshot.errorType = 'Network Error';
+          snapshot.suggestion = 'Check if backend server is running and API_BASE_URL is correct';
+          snapshot.apiBaseUrl = API_BASE_URL;
+        }
+        
         // Include a safe preview of response data
         const respData = (error as any)?.response?.data;
         snapshot.data = typeof respData === 'string' ? respData : JSON.stringify(respData ?? null);
         // eslint-disable-next-line no-console
         console.error('API Error:', JSON.stringify(snapshot, null, 2));
+        
+        // Additional helpful message for network errors
+        if (isNetworkError) {
+          // eslint-disable-next-line no-console
+          console.error(`⚠️ Network Error: Cannot reach API at ${API_BASE_URL || 'undefined'}. 
+          Make sure:
+          1. Backend server is running
+          2. NEXT_PUBLIC_API_BASE_URL is set correctly in .env.local
+          3. CORS is configured on the backend
+          4. No firewall is blocking the connection`);
+        }
       } catch {
         // eslint-disable-next-line no-console
         console.error('API Error:', error?.message || 'Unknown error');

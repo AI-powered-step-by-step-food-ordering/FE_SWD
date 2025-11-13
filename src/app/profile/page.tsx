@@ -29,43 +29,124 @@ export default function ProfilePage() {
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
+    // Reset file input to allow selecting same file again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    
     // Validate file
-    const { valid, error } = validateImageFile(file, 5);
+    const { valid, error: validationError } = validateImageFile(file, 5);
     if (!valid) {
-      toast.error(error);
+      toast.error(validationError || 'File không hợp lệ. Vui lòng chọn file ảnh (JPEG, PNG, GIF, WEBP) dưới 5MB.');
       return;
     }
+    
+    // Check Firebase configuration
+    const firebaseConfig = {
+      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    };
+    
+    if (!firebaseConfig.apiKey || !firebaseConfig.storageBucket) {
+      toast.error('Firebase chưa được cấu hình. Vui lòng liên hệ quản trị viên.');
+      console.error('Firebase config missing:', {
+        hasApiKey: !!firebaseConfig.apiKey,
+        hasStorageBucket: !!firebaseConfig.storageBucket,
+      });
+      return;
+    }
+    
     try {
-      const upload = await uploadToFirebase(file, 'profile');
+      // Show loading toast
+      const loadingToast = toast.loading('Đang tải ảnh lên...');
+      
+      const upload = await uploadToFirebase(file, 'profile', (progress) => {
+        // Update loading toast with progress
+        toast.update(loadingToast, {
+          render: `Đang tải ảnh lên... ${progress}%`,
+          type: 'info',
+          isLoading: true,
+        });
+      });
+      
       if (upload && upload.url) {
         handleInputChange('imageUrl', upload.url);
-        toast.success('Tải ảnh lên thành công!');
+        toast.update(loadingToast, {
+          render: 'Tải ảnh lên thành công!',
+          type: 'success',
+          isLoading: false,
+          autoClose: 3000,
+        });
+      } else {
+        toast.update(loadingToast, {
+          render: 'Upload thành công nhưng không nhận được URL ảnh. Vui lòng thử lại.',
+          type: 'error',
+          isLoading: false,
+          autoClose: 5000,
+        });
+        console.error('Upload response missing URL:', upload);
       }
     } catch (err: any) {
-      toast.error('Upload ảnh thất bại!');
+      console.error('Upload error details:', err);
+      
+      // Provide more specific error messages
+      let errorMessage = 'Upload ảnh thất bại!';
+      
+      if (err?.code) {
+        switch (err.code) {
+          case 'storage/unauthorized':
+            errorMessage = 'Không có quyền upload ảnh. Vui lòng đăng nhập lại.';
+            break;
+          case 'storage/canceled':
+            errorMessage = 'Upload đã bị hủy.';
+            break;
+          case 'storage/unknown':
+            errorMessage = 'Lỗi không xác định khi upload. Vui lòng thử lại.';
+            break;
+          case 'storage/quota-exceeded':
+            errorMessage = 'Dung lượng lưu trữ đã hết. Vui lòng liên hệ quản trị viên.';
+            break;
+          default:
+            errorMessage = err.message || err?.error?.message || `Lỗi: ${err.code}`;
+        }
+      } else if (err?.message) {
+        errorMessage = err.message;
+      } else if (err?.error?.message) {
+        errorMessage = err.error.message;
+      }
+      
+      toast.error(errorMessage);
     }
   };
 
   const loadOrderStats = useCallback(async (uid: string) => {
     try {
       const { orderService } = await import('@/services');
-      const res = await orderService.getAll();
-      if (res.success && Array.isArray(res.data)) {
-        const myOrders = res.data.filter(o => o.userId === uid);
+      // Use order history endpoint for user-specific orders instead of getAll
+      const res = await orderService.getOrderHistory(uid, { page: 0, size: 100, sortBy: 'createdAt', sortDir: 'desc' });
+      if (res.success && res.data) {
+        // Handle both array and PagedResponse formats
+        const orders = Array.isArray(res.data) 
+          ? res.data 
+          : (res.data.content || []);
+        
+        const myOrders = orders.filter((o: any) => !uid || o.userId === uid || !o.userId);
         setOrderCount(myOrders.length);
-        const total = myOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+        const total = myOrders.reduce((sum: number, o: any) => sum + (o.totalAmount || 0), 0);
         setTotalSpent(total);
         const last = myOrders
-          .map(o => o.createdAt)
+          .map((o: any) => o.createdAt)
           .filter(Boolean)
-          .sort((a, b) => new Date(b as string).getTime() - new Date(a as string).getTime())[0] || null;
+          .sort((a: any, b: any) => new Date(b as string).getTime() - new Date(a as string).getTime())[0] || null;
         setLastOrderAt(last as string | null);
         // Recent orders preview (latest 5)
-        const sorted = [...myOrders].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-        setRecentOrders(sorted.slice(0, 5).map(o => ({ id: o.id, createdAt: o.createdAt, totalAmount: o.totalAmount, status: o.status })));
+        const sorted = [...myOrders].sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        setRecentOrders(sorted.slice(0, 5).map((o: any) => ({ id: o.id, createdAt: o.createdAt, totalAmount: o.totalAmount, status: o.status })));
       }
     } catch (e) {
       console.error('Failed to load order stats', e);
+      // Silently fail - don't break profile page if order stats can't load
     }
   }, []);
 

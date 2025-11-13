@@ -36,7 +36,7 @@ function OrderPageContent() {
   // Toggle to send amount in cents if backend requires integer amounts
   const USE_CENTS_FOR_PAYMENT = false;
   // Payment method selection (must match BE enum)
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.TRANSFER);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.ZALOPAY);
 
   useEffect(() => {
     hydrateInitial();
@@ -381,11 +381,8 @@ function OrderPageContent() {
                     onChange={(e)=>setPaymentMethod(e.target.value as PaymentMethod)}
                     className="w-full px-3 py-2 border rounded"
                   >
-                    <option value={PaymentMethod.CARD}>Thẻ (CARD)</option>
-                    <option value={PaymentMethod.CASH}>Tiền mặt (CASH)</option>
-                    <option value={PaymentMethod.WALLET}>Ví (WALLET)</option>
-                    <option value={PaymentMethod.TRANSFER}>Chuyển khoản (TRANSFER)</option>
                     <option value={PaymentMethod.ZALOPAY}>ZaloPay (ZALOPAY)</option>
+                    <option value={PaymentMethod.CASH}>Tiền mặt (CASH)</option>
                   </select>
                 </div>
                   <div className="flex gap-3">

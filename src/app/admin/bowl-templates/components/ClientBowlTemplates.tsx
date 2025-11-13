@@ -74,7 +74,7 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
       }
     };
     load();
-  }, []);
+  }, [initialCategories]);
 
   const getIsActive = (t: BowlTemplate) => (t.isActive ?? t.active) === true;
 
@@ -122,7 +122,7 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
         if (res.success) {
           toast.success('Cập nhật bowl template thành công');
           const all = await bowlTemplateService.getAll();
-          setTemplates(all.data || []);
+          setTemplates(all.data?.content || []);
           setShowTemplateModal(false);
           resetTemplateForm();
         } else { toast.error(res.message || 'Cập nhật thất bại'); }
@@ -131,7 +131,7 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
         if (res.success) {
           toast.success('Tạo bowl template thành công');
           const all = await bowlTemplateService.getAll();
-          setTemplates(all.data || []);
+          setTemplates(all.data?.content || []);
           setShowTemplateModal(false);
           resetTemplateForm();
         } else { toast.error(res.message || 'Tạo mới thất bại'); }
@@ -150,7 +150,7 @@ export default function ClientBowlTemplates({ initialTemplates = [], initialCate
       if (res.success) {
         toast.success('Xóa bowl template thành công');
         const all = await bowlTemplateService.getAll();
-        setTemplates(all.data || []);
+        setTemplates(all.data?.content || []);
       } else { toast.error(res.message || 'Xóa thất bại'); }
     } catch (err) {
       console.error('Delete template error', err);

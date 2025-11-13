@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import ImageWithFallback from "@/components/shared/ImageWithFallback";
 import AdminSearchBar from '@/components/admin/AdminSearchBar';
 import Pagination from '@/components/admin/Pagination';
@@ -44,14 +44,9 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [useLegacy, setUseLegacy] = useState(false);
 
-  useEffect(() => {
-    loadCategories();
-  }, [showInactive, page, pageSize, search, sortField, sortDirection]);
-
-  const loadCategories = async () => {
+  const loadCategories = useCallback(async () => {
     try {
       setLoading(true);
-      const sortParam = `${sortField},${sortDirection}`;
       const q = search.trim().toLowerCase();
 
       if (q && !useLegacy) {
@@ -87,7 +82,8 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
         const response = await categoryService.getAll({
           page: page - 1,
           size: pageSize,
-          sort: sortParam,
+          sortBy: sortField,
+          sortDir: sortDirection,
         });
 
         if (response.success && response.data) {
@@ -113,7 +109,11 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showInactive, page, pageSize, search, sortField, sortDirection, useLegacy]);
+
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

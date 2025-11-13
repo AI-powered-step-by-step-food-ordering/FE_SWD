@@ -37,12 +37,20 @@ export default function OrdersPage() {
   const loadOrders = async () => {
     try {
       setLoading(true);
-      const response = await orderService.getAll({ page: 0, size: 500, sortBy: 'createdAt', sortDir: 'desc' });
-      const list = (response.data as any)?.content || [];
-      setOrders(list as Order[]);
-    } catch (error) {
+      // Use smaller size to avoid backend overload (will fetch in batches if needed)
+      const response = await orderService.getAll({ page: 0, size: 50, sortBy: 'createdAt', sortDir: 'desc' });
+      if (response.success && response.data) {
+        const list = (response.data as any)?.content || [];
+        setOrders(list as Order[]);
+      } else {
+        toast.error(response.message || 'Failed to load orders');
+        setOrders([]);
+      }
+    } catch (error: any) {
       console.error('Failed to load orders:', error);
-      toast.error('Failed to load orders');
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to load orders';
+      toast.error(errorMessage);
+      setOrders([]);
     } finally {
       setLoading(false);
     }
