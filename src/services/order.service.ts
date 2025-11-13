@@ -23,6 +23,8 @@ class OrderService {
   async search(params?: { 
     userId?: string;
     storeId?: string;
+    fullName?: string;
+    status?: string;
     page?: number; 
     size?: number; 
     sortBy?: string; 
@@ -32,6 +34,8 @@ class OrderService {
 
     if (params?.userId) searchParams.append('userId', params.userId);
     if (params?.storeId) searchParams.append('storeId', params.storeId);
+    if (params?.fullName) searchParams.append('fullName', params.fullName);
+    if (params?.status) searchParams.append('status', params.status);
     if (params?.page !== undefined) searchParams.append('page', params.page.toString());
     if (params?.size !== undefined) searchParams.append('size', params.size.toString());
     if (params?.sortBy) searchParams.append('sortBy', params.sortBy);

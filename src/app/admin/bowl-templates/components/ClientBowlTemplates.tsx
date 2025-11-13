@@ -777,7 +777,7 @@ export default function ClientBowlTemplates({
                       folder="bowl-templates"
                     />
                   </div>
-                  <div className="flex items-center gap-2">
+                  {/* <div className="flex items-center gap-2">
                     <label className="text-sm font-medium text-gray-700">
                       Active
                     </label>
@@ -791,7 +791,7 @@ export default function ClientBowlTemplates({
                         })
                       }
                     />
-                  </div>
+                  </div> */}
                 </div>
               </div>
               <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
@@ -928,91 +928,93 @@ export default function ClientBowlTemplates({
                     </div>
                   </div>
 
-                  {/* Default Ingredients Section */}
-                  <div className="mt-6 border-t pt-4">
-                    <div className="mb-3 flex items-center justify-between">
-                      <label className="text-sm font-medium text-gray-700">
-                        Default Ingredients
-                      </label>
-                      <button
-                        type="button"
-                        onClick={addDefaultIngredient}
-                        disabled={
-                          ingredientsLoading ||
-                          availableIngredients.length === 0
-                        }
-                        className="rounded-md bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:bg-gray-400"
-                      >
-                        + Add Ingredient
-                      </button>
-                    </div>
+                  {/* Default Ingredients Section - Only show when editing a step */}
+                  {editingStep && (
+                    <div className="mt-6 border-t pt-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <label className="text-sm font-medium text-gray-700">
+                          Default Ingredients
+                        </label>
+                        <button
+                          type="button"
+                          onClick={addDefaultIngredient}
+                          disabled={
+                            ingredientsLoading ||
+                            availableIngredients.length === 0
+                          }
+                          className="rounded-md bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:bg-gray-400"
+                        >
+                          + Add Ingredient
+                        </button>
+                      </div>
 
-                    {ingredientsLoading ? (
-                      <div className="text-center text-sm text-gray-500">
-                        Loading ingredients...
-                      </div>
-                    ) : availableIngredients.length === 0 ? (
-                      <div className="text-center text-sm text-gray-500">
-                        No ingredients in this category
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {(stepForm.defaultIngredients || []).map(
-                          (item, idx) => (
-                            <div
-                              key={idx}
-                              className="flex items-center gap-2 rounded border border-gray-200 p-2"
-                            >
-                              <select
-                                value={item.ingredientId}
-                                onChange={(e) =>
-                                  updateDefaultIngredient(
-                                    idx,
-                                    "ingredientId",
-                                    e.target.value,
-                                  )
-                                }
-                                className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
+                      {ingredientsLoading ? (
+                        <div className="text-center text-sm text-gray-500">
+                          Loading ingredients...
+                        </div>
+                      ) : availableIngredients.length === 0 ? (
+                        <div className="text-center text-sm text-gray-500">
+                          No ingredients in this category
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {(stepForm.defaultIngredients || []).map(
+                            (item, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-2 rounded border border-gray-200 p-2"
                               >
-                                {availableIngredients.map((ing) => (
-                                  <option key={ing.id} value={ing.id}>
-                                    {ing.name}
-                                  </option>
-                                ))}
-                              </select>
-                              <input
-                                type="number"
-                                value={item.quantity}
-                                onChange={(e) =>
-                                  updateDefaultIngredient(
-                                    idx,
-                                    "quantity",
-                                    Number(e.target.value),
-                                  )
-                                }
-                                placeholder="Quantity"
-                                className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
-                              />
-                              <span className="text-xs text-gray-500">g</span>
-                              <button
-                                type="button"
-                                onClick={() => removeDefaultIngredient(idx)}
-                                className="text-red-600 hover:text-red-800"
-                              >
-                                <i className="bx bx-trash text-lg"></i>
-                              </button>
+                                <select
+                                  value={item.ingredientId}
+                                  onChange={(e) =>
+                                    updateDefaultIngredient(
+                                      idx,
+                                      "ingredientId",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
+                                >
+                                  {availableIngredients.map((ing) => (
+                                    <option key={ing.id} value={ing.id}>
+                                      {ing.name}
+                                    </option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="number"
+                                  value={item.quantity}
+                                  onChange={(e) =>
+                                    updateDefaultIngredient(
+                                      idx,
+                                      "quantity",
+                                      Number(e.target.value),
+                                    )
+                                  }
+                                  placeholder="Quantity"
+                                  className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
+                                />
+                                <span className="text-xs text-gray-500">g</span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeDefaultIngredient(idx)}
+                                  className="text-red-600 hover:text-red-800"
+                                >
+                                  <i className="bx bx-trash text-lg"></i>
+                                </button>
+                              </div>
+                            ),
+                          )}
+                          {(stepForm.defaultIngredients || []).length === 0 && (
+                            <div className="text-center text-sm text-gray-400">
+                              No default ingredients added yet. Click "Add
+                              Ingredient" to start.
                             </div>
-                          ),
-                        )}
-                        {(stepForm.defaultIngredients || []).length === 0 && (
-                          <div className="text-center text-sm text-gray-400">
-                            No default ingredients added yet. Click "Add
-                            Ingredient" to start.
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">

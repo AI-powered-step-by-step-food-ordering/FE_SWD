@@ -47,29 +47,33 @@ export default function OrdersPage() {
       setLoading(true);
       const q = search.trim();
 
-      // Use server-side search when there's a search query (userId or storeId)
-      if (q) {
-        const response = await orderService.search({
-          userId: q, // Try searching by userId
+      // Use search endpoint when there's a search query or status filter
+      if (q || filter !== "ALL") {
+        const searchParams: any = {
           page: page - 1,
           size: pageSize,
           sortBy: "createdAt",
           sortDir: "desc",
-        });
+        };
 
-        const pageData = response.data;
-        let list = pageData?.content || [];
-
-        // Apply status filter if needed
-        if (filter !== "ALL") {
-          list = list.filter((order: Order) => order.status === filter);
+        // Add search query parameters if provided
+        if (q) {
+          searchParams.fullName = q;
         }
 
+        // Add status filter if not ALL
+        if (filter !== "ALL") {
+          searchParams.status = filter;
+        }
+
+        const response = await orderService.search(searchParams);
+        const pageData = response.data;
+        const list = pageData?.content || [];
+
         setOrders(list);
-        // Recalculate pagination for filtered results
-        setTotal(list.length);
+        setTotal(pageData?.totalElements ?? list.length ?? 0);
       } else {
-        // Use server-side getAll with pagination
+        // Use getAll endpoint when no search/filter (it includes bowls with templates)
         const response = await orderService.getAll({
           page: page - 1,
           size: pageSize,
@@ -78,12 +82,7 @@ export default function OrdersPage() {
         });
 
         const pageData = response.data;
-        let list = pageData?.content || [];
-
-        // Apply status filter if needed
-        if (filter !== "ALL") {
-          list = list.filter((order: Order) => order.status === filter);
-        }
+        const list = pageData?.content || [];
 
         setOrders(list);
         setTotal(pageData?.totalElements ?? list.length ?? 0);
@@ -107,7 +106,9 @@ export default function OrdersPage() {
       setOrderBowls(orderBowls);
 
       // Extract bowl items from the bowls data (if items are included)
-      const orderBowlItems = orderBowls.flatMap((bowl: any) => bowl.items || []);
+      const orderBowlItems = orderBowls.flatMap(
+        (bowl: any) => bowl.items || [],
+      );
       setBowlItems(orderBowlItems);
 
       // Load payment transactions for this order
@@ -210,10 +211,6 @@ export default function OrdersPage() {
         return "bg-yellow-100 text-yellow-800";
       case "CONFIRMED":
         return "bg-blue-100 text-blue-800";
-      case "IN_KITCHEN":
-        return "bg-purple-100 text-purple-800";
-      case "READY_FOR_PICKUP":
-        return "bg-indigo-100 text-indigo-800";
       case "COMPLETED":
         return "bg-green-100 text-green-800";
       case "CANCELLED":
@@ -254,8 +251,6 @@ export default function OrdersPage() {
               <option value="ALL">All Orders</option>
               <option value="PENDING">Pending</option>
               <option value="CONFIRMED">Confirmed</option>
-              <option value="IN_KITCHEN">In Kitchen</option>
-              <option value="READY_FOR_PICKUP">Ready for Pickup</option>
               <option value="COMPLETED">Completed</option>
               <option value="CANCELLED">Cancelled</option>
             </select>
@@ -263,15 +258,8 @@ export default function OrdersPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {[
-            "PENDING",
-            "CONFIRMED",
-            "IN_KITCHEN",
-            "READY_FOR_PICKUP",
-            "COMPLETED",
-            "CANCELLED",
-          ].map((status) => {
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {["PENDING", "CONFIRMED", "COMPLETED", "CANCELLED"].map((status) => {
             const count = orders.filter((o) => o.status === status).length;
             return (
               <div key={status} className="rounded-lg bg-white p-4 shadow-sm">
@@ -394,8 +382,8 @@ export default function OrdersPage() {
                             </button>
                           )}
                           {(order.status === "CONFIRMED" ||
-                            order.status === "IN_KITCHEN" ||
-                            order.status === "READY_FOR_PICKUP") && (
+                            order.status === "PREPARING" ||
+                            order.status === "READY") && (
                             <button
                               onClick={() => handleComplete(order.id)}
                               className="text-green-600 hover:text-green-900"
@@ -597,17 +585,29 @@ export default function OrdersPage() {
                                     key={item.id}
                                     className="flex justify-between rounded bg-gray-50 p-2 text-sm"
                                   >
-                                    <span>{item.ingredient?.name || item.ingredientName}</span>
                                     <span>
-                                      {item.quantity} {item.ingredient?.unit || item.unit || 'g'}
+                                      {item.ingredient?.name ||
+                                        item.ingredientName}
+                                    </span>
+                                    <span>
+                                      {item.quantity}{" "}
+                                      {item.ingredient?.unit ||
+                                        item.unit ||
+                                        "g"}
                                     </span>
                                   </div>
                                 ))
                               ) : (bowl as any).template?.steps ? (
                                 // Display template default ingredients if items not available
                                 (bowl as any).template.steps
-                                  .sort((a: any, b: any) => a.displayOrder - b.displayOrder)
-                                  .flatMap((step: any) => step.defaultIngredients || [])
+                                  .sort(
+                                    (a: any, b: any) =>
+                                      a.displayOrder - b.displayOrder,
+                                  )
+                                  .flatMap(
+                                    (step: any) =>
+                                      step.defaultIngredients || [],
+                                  )
                                   .map((ing: any, idx: number) => (
                                     <div
                                       key={idx}
@@ -615,7 +615,7 @@ export default function OrdersPage() {
                                     >
                                       <span>{ing.ingredientName}</span>
                                       <span>
-                                        {ing.quantity} {ing.unit || 'g'}
+                                        {ing.quantity} {ing.unit || "g"}
                                       </span>
                                     </div>
                                   ))
