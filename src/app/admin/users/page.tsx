@@ -118,15 +118,15 @@ export default function UsersPage() {
   };
 
   const handleSoftDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to soft delete this user?')) return;
+    if (!confirm('Are you sure you want to delete this user?')) return;
     
     try {
       await userService.softDelete(id);
-      toast.success('User soft deleted successfully');
+      toast.success('User deleted successfully');
       loadUsers(); // Reload data to maintain pagination
     } catch (error) {
-      console.error('Failed to soft delete user:', error);
-      toast.error('Failed to soft delete user');
+      console.error('Failed to delete user:', error);
+      toast.error('Failed to delete user');
     }
   };
 
@@ -337,7 +337,7 @@ export default function UsersPage() {
                               onClick={() => handleSoftDelete(user.id)}
                               className="text-orange-600 hover:text-orange-900"
                             >
-                              Soft Delete
+                              Delete
                             </button>
                           </>
                         )}

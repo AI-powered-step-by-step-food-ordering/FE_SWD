@@ -102,18 +102,12 @@ export default function OrdersPage() {
       setSelectedOrder(order);
       setShowOrderModal(true);
 
-      // Load bowls for this order
-      const bowlsResponse = await bowlService.getAll({ page: 0, size: 500 });
-      const orderBowls = ((bowlsResponse.data as any)?.content || []).filter(
-        (bowl: Bowl) => bowl.orderId === order.id,
-      );
+      // Use bowls data already included in the order response
+      const orderBowls = (order as any).bowls || [];
       setOrderBowls(orderBowls);
 
-      // Load bowl items for these bowls
-      const bowlItemsResponse = await bowlService.getAllItems();
-      const orderBowlItems = (bowlItemsResponse.data || []).filter((item) =>
-        orderBowls.some((bowl: Bowl) => bowl.id === item.bowlId),
-      );
+      // Extract bowl items from the bowls data (if items are included)
+      const orderBowlItems = orderBowls.flatMap((bowl: any) => bowl.items || []);
       setBowlItems(orderBowlItems);
 
       // Load payment transactions for this order
@@ -388,7 +382,7 @@ export default function OrdersPage() {
                             className="text-indigo-600 hover:text-indigo-900"
                             title="View Order Details"
                           >
-                            👁
+                            <i className="bx bx-show text-[18px]"></i>
                           </button>
                           {order.status === "PENDING" && (
                             <button
@@ -396,7 +390,7 @@ export default function OrdersPage() {
                               className="text-blue-600 hover:text-blue-900"
                               title="Confirm Order"
                             >
-                              ✓
+                              <i className="bx bx-check-square text-[18px]"></i>
                             </button>
                           )}
                           {(order.status === "CONFIRMED" ||
@@ -407,7 +401,7 @@ export default function OrdersPage() {
                               className="text-green-600 hover:text-green-900"
                               title="Complete Order"
                             >
-                              ✓✓
+                              <i className="bx bx-check-circle text-[18px]"></i>
                             </button>
                           )}
                           {order.status !== "COMPLETED" &&
@@ -417,7 +411,7 @@ export default function OrdersPage() {
                                 className="text-red-600 hover:text-red-900"
                                 title="Cancel Order"
                               >
-                                ✕
+                                <i className="bx bx-x-circle text-[18px]"></i>
                               </button>
                             )}
                         </div>
@@ -451,9 +445,9 @@ export default function OrdersPage() {
               </h2>
               <button
                 onClick={() => setShowOrderModal(false)}
-                className="text-2xl text-gray-500 hover:text-gray-700"
+                className="rounded-full p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
               >
-                ×
+                <i className="bx bx-x text-2xl"></i>
               </button>
             </div>
 
@@ -596,26 +590,41 @@ export default function OrdersPage() {
                               Ingredients:
                             </h5>
                             <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                              {bowlItems
-                                .filter((item) => item.bowlId === bowl.id)
-                                .map((item) => (
+                              {((bowl as any).items || []).length > 0 ? (
+                                // Display items if available
+                                ((bowl as any).items || []).map((item: any) => (
                                   <div
                                     key={item.id}
                                     className="flex justify-between rounded bg-gray-50 p-2 text-sm"
                                   >
-                                    <span>{item.ingredient?.name}</span>
+                                    <span>{item.ingredient?.name || item.ingredientName}</span>
                                     <span>
-                                      {item.quantity} {item.ingredient?.unit}
-                                    </span>{" "}
+                                      {item.quantity} {item.ingredient?.unit || item.unit || 'g'}
+                                    </span>
                                   </div>
-                                ))}
+                                ))
+                              ) : (bowl as any).template?.steps ? (
+                                // Display template default ingredients if items not available
+                                (bowl as any).template.steps
+                                  .sort((a: any, b: any) => a.displayOrder - b.displayOrder)
+                                  .flatMap((step: any) => step.defaultIngredients || [])
+                                  .map((ing: any, idx: number) => (
+                                    <div
+                                      key={idx}
+                                      className="flex justify-between rounded bg-gray-50 p-2 text-sm"
+                                    >
+                                      <span>{ing.ingredientName}</span>
+                                      <span>
+                                        {ing.quantity} {ing.unit || 'g'}
+                                      </span>
+                                    </div>
+                                  ))
+                              ) : (
+                                <p className="text-sm text-gray-500">
+                                  No ingredients found.
+                                </p>
+                              )}
                             </div>
-                            {bowlItems.filter((item) => item.bowlId === bowl.id)
-                              .length === 0 && (
-                              <p className="text-sm text-gray-500">
-                                No ingredients found.
-                              </p>
-                            )}
                           </div>
                         </div>
                       ))}

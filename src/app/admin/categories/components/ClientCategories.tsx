@@ -117,14 +117,14 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
   };
 
   const handleSoftDelete = async (id: string) => {
-    if (window.confirm("Are you sure you want to soft delete this category?")) {
+    if (window.confirm("Are you sure you want to delete this category?")) {
       try {
         await categoryService.softDelete(id);
-        toast.success("Category soft deleted successfully");
+        toast.success("Category deleted successfully");
         loadCategories();
       } catch (error) {
-        console.error("Error soft deleting category:", error);
-        toast.error("Failed to soft delete category");
+        console.error("Error deleting category:", error);
+        toast.error("Failed to delete category");
       }
     }
   };
@@ -282,7 +282,7 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
                       ) : (
                         <>
                           <button onClick={() => handleEdit(category)} className="mr-4 text-blue-600 hover:text-blue-900">Edit</button>
-                          <button onClick={() => handleSoftDelete(category.id)} className="text-orange-600 hover:text-orange-900">Soft Delete</button>
+                          <button onClick={() => handleSoftDelete(category.id)} className="text-orange-600 hover:text-orange-900">Delete</button>
                         </>
                       )}
                     </td>

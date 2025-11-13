@@ -150,7 +150,7 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
   };
 
   const handleSoftDelete = async (id: string) => {
-    if (window.confirm("Are you sure you want to soft delete this ingredient?")) {
+    if (window.confirm("Are you sure you want to delete this ingredient?")) {
       try {
         await ingredientService.softDelete(id);
         loadIngredients();

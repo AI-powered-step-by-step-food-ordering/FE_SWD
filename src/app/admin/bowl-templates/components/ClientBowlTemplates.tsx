@@ -209,15 +209,15 @@ export default function ClientBowlTemplates({
 
   const handleSoftDelete = async (id: string) => {
     if (
-      window.confirm("Are you sure you want to soft delete this bowl template?")
+      window.confirm("Are you sure you want to delete this bowl template?")
     ) {
       try {
         await bowlTemplateService.softDelete(id);
-        toast.success("Bowl template soft deleted successfully");
+        toast.success("Bowl template deleted successfully");
         loadTemplates();
       } catch (error) {
-        console.error("Error soft deleting bowl template:", error);
-        toast.error("Failed to soft delete bowl template");
+        console.error("Error deleting bowl template:", error);
+        toast.error("Failed to delete bowl template");
       }
     }
   };
@@ -621,7 +621,7 @@ export default function ClientBowlTemplates({
                   >
                     <div className="flex flex-col items-center">
                       <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-                        <span className="text-xl">📄</span>
+                        <i className="bx bx-file text-2xl text-gray-400"></i>
                       </div>
                       <div className="text-lg font-semibold">
                         Không có Template nào
@@ -695,7 +695,7 @@ export default function ClientBowlTemplates({
                             onClick={() => handleSoftDelete(t.id)}
                             className="text-orange-600 hover:text-orange-900"
                           >
-                            Soft Delete
+                            Delete
                           </button>
                         </>
                       )}

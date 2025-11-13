@@ -89,7 +89,7 @@ export default function IngredientItem({ ingredient, onDelete, onUpdate, onSoftD
                   onClick={() => onSoftDelete(ingredient.id!)}
                   className="flex-1 px-3 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors text-sm font-medium"
                 >
-                  Soft Delete
+                  Delete
                 </button>
               )}
             </>
