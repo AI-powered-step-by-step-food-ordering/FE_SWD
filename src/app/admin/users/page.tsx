@@ -6,7 +6,6 @@ import userService from '@/services/user.service';
 import type { User, UserCreateRequest, UserUpdateRequest } from '@/types/api.types';
 import { toast } from 'react-toastify';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
-import AdminSearchBar from '@/components/admin/AdminSearchBar';
 import Pagination from '@/components/admin/Pagination';
 
 export default function UsersPage() {
@@ -16,7 +15,6 @@ export default function UsersPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showInactive, setShowInactive] = useState(false);
-  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [sortField, setSortField] = useState('fullName');
@@ -34,40 +32,13 @@ export default function UsersPage() {
 
   useEffect(() => {
     loadUsers();
-  }, [showInactive, page, pageSize, search, sortField, sortDirection]);
+  }, [showInactive, page, pageSize, sortField, sortDirection]);
 
   const loadUsers = async () => {
     try {
       setLoading(true);
 
-      const hasSearch = search.trim().length > 0;
       const sortParam = `${sortField},${sortDirection}`;
-
-      // Use server-side search endpoint when searching
-      if (hasSearch) {
-        const response = await userService.search({
-          searchText: search.trim(),
-          page: page - 1,
-          size: pageSize,
-          sortBy: sortField,
-          sortDir: sortDirection,
-        });
-        
-        // Apply active/inactive filter on results if needed
-        let filteredUsers = response.data.content || [];
-        if (showInactive) {
-          filteredUsers = filteredUsers.filter((u: any) => u.status && u.status !== 'ACTIVE');
-        } else {
-          filteredUsers = filteredUsers.filter((u: any) => u.status === 'ACTIVE');
-        }
-        
-        setUsers(filteredUsers);
-        // Recalculate pagination for filtered results
-        const totalFiltered = filteredUsers.length;
-        setTotalElements(totalFiltered);
-        setTotalPages(Math.ceil(totalFiltered / pageSize));
-        return;
-      }
 
       // Use server-side active/inactive endpoints with pagination
       if (showInactive) {
@@ -95,11 +66,6 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    setPage(1); // Reset to first page when searching
   };
 
   const handleSort = (field: string, direction?: 'asc' | 'desc') => {
@@ -226,8 +192,6 @@ export default function UsersPage() {
             <p className="text-sm text-gray-600 mt-1">Manage all users in the system</p>
           </div>
           <div className="flex items-center gap-4">
-            <AdminSearchBar value={search} onChange={handleSearch} placeholder="Tìm người dùng..." />
-            
             {/* Sort Dropdown */}
             <select
               value={`${sortField},${sortDirection}`}

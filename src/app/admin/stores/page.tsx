@@ -9,7 +9,6 @@ import { getFirebaseThumbnail } from '@/lib/firebase-storage';
 import type { Store, StoreRequest } from '@/types/api.types';
 import { toast } from 'react-toastify';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
-import AdminSearchBar from '@/components/admin/AdminSearchBar';
 import Pagination from '@/components/admin/Pagination';
 
 const FirebaseImageUpload = dynamic(() => import('@/components/shared/FirebaseImageUpload'), {
@@ -26,7 +25,6 @@ export default function StoresPage() {
   const [editingStore, setEditingStore] = useState<UiStore | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [totalElements, setTotalElements] = useState(0);
@@ -42,47 +40,26 @@ export default function StoresPage() {
 
   useEffect(() => {
     loadStores();
-  }, [page, pageSize, search, sortField, sortDirection]);
+  }, [page, pageSize, sortField, sortDirection]);
 
   const loadStores = async () => {
     try {
       setLoading(true);
-      const q = search.trim();
       
-      // For now, use the getAll endpoint with pagination and sorting
-      // Backend doesn't have a search endpoint for stores yet, so we fetch all and filter if needed
+      // Use the getAll endpoint with pagination and sorting
       const response = await storeService.getAll({
         page: page - 1, // Backend uses 0-based indexing
-        size: q ? 1000 : pageSize, // If searching, get more results to filter client-side
+        size: pageSize,
         sortBy: sortField,
         sortDir: sortDirection,
       });
       
       if (response.success && response.data) {
         const data = response.data as any;
-        let storesList = data.content || [];
-        
-        // Client-side search filter if query exists
-        if (q) {
-          const lowerQ = q.toLowerCase();
-          storesList = storesList.filter((s: any) => (
-            (s.name?.toLowerCase().includes(lowerQ)) ||
-            (s.address?.toLowerCase().includes(lowerQ)) ||
-            (s.phone?.toLowerCase().includes(lowerQ))
-          ));
-          
-          // Client-side pagination for search results
-          const total = storesList.length;
-          const startIndex = (page - 1) * pageSize;
-          storesList = storesList.slice(startIndex, startIndex + pageSize);
-          setStores(storesList);
-          setTotalElements(total);
-          setTotalPages(Math.ceil(total / pageSize));
-        } else {
-          setStores(storesList);
-          setTotalElements(data.totalElements || storesList.length);
-          setTotalPages(data.totalPages || 1);
-        }
+        const storesList = data.content || [];
+        setStores(storesList);
+        setTotalElements(data.totalElements || storesList.length);
+        setTotalPages(data.totalPages || 1);
       } else {
         setStores([]);
         setTotalElements(0);
@@ -94,12 +71,6 @@ export default function StoresPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Handle search
-  const handleSearch = (searchTerm: string) => {
-    setSearch(searchTerm);
-    setPage(1); // Reset to first page when searching
   };
 
   // Handle sorting
@@ -205,7 +176,6 @@ export default function StoresPage() {
               <option value="active-desc">Active First</option>
               <option value="active-asc">Inactive First</option>
             </select>
-            <AdminSearchBar value={search} onChange={handleSearch} placeholder="Tìm cửa hàng..." />
           <button
             onClick={() => {
               resetForm();

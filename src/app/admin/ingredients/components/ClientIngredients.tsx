@@ -7,7 +7,6 @@ import categoryService from '@/services/category.service';
 // import AddIngredientForm from './AddIngredientForm';
 import IngredientList from './IngredientList';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
-import AdminSearchBar from '@/components/admin/AdminSearchBar';
 import Pagination from '@/components/admin/Pagination';
 import EditIngredientModal from './EditIngredientModal';
 import AddIngredientModal from './AddIngredientModal';
@@ -28,7 +27,6 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [totalElements, setTotalElements] = useState(0);
@@ -41,11 +39,8 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
   const loadIngredients = async () => {
     setLoading(true);
     try {
-      const q = (search || '').trim();
 
-      // Always use server-side active/inactive endpoints with pagination
-      // Search is NOT supported with active/inactive filter on backend
-      // So we fetch active or inactive and let backend handle everything
+      // Use server-side active/inactive endpoints with pagination
       const response = showInactive 
         ? await ingredientService.getInactive({
             page: page - 1,
@@ -63,25 +58,9 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
       if (response.success && response.data) {
         const { content, totalElements: total, totalPages: pages } = response.data;
         
-        // Apply client-side search filter if search query exists
-        // (Backend doesn't support search + active/inactive combined)
-        let filteredContent = content;
-        if (q) {
-          filteredContent = content.filter(ing => 
-            ing.name?.toLowerCase().includes(q.toLowerCase()) ||
-            ing.categoryId?.toLowerCase().includes(q.toLowerCase())
-          );
-        }
-        
-        // Debug: Log first ingredient to check active field
-        if (filteredContent.length > 0) {
-          console.log('First ingredient active status:', filteredContent[0].active, typeof filteredContent[0].active);
-        }
-        
-        setIngredients(filteredContent);
-        // Use server-side totals if no search, otherwise use filtered count
-        setTotalElements(q ? filteredContent.length : total);
-        setTotalPages(q ? Math.ceil(filteredContent.length / pageSize) : pages);
+        setIngredients(content);
+        setTotalElements(total);
+        setTotalPages(pages);
       } else {
         setIngredients([]);
         setTotalElements(0);
@@ -100,7 +79,7 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
   // Load ingredients when dependencies change
   useEffect(() => {
     loadIngredients();
-  }, [showInactive, page, pageSize, search, sortField, sortDirection]);
+  }, [showInactive, page, pageSize, sortField, sortDirection]);
 
   // Ensure categories are loaded and normalized
   useEffect(() => {
@@ -118,12 +97,6 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
     };
     ensureCategories();
   }, []);
-
-  // Handle search
-  const handleSearch = (searchTerm: string) => {
-    setSearch(searchTerm);
-    setPage(1); // Reset to first page when searching
-  };
 
   // Handle sort
   const handleSort = (field: string) => {
@@ -237,30 +210,21 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="flex items-center justify-between">
-        <AdminSearchBar
-          value={search}
-          onChange={handleSearch}
-          placeholder="Search ingredients..."
-        />
-        
-        {/* Sort Controls */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Sort by:</span>
-          <button
-            onClick={() => handleSort('name')}
-            className="px-3 py-1 text-sm border rounded hover:bg-gray-50 flex items-center gap-1"
-          >
-            Name {getSortIcon('name')}
-          </button>
-          <button
-            onClick={() => handleSort('categoryId')}
-            className="px-3 py-1 text-sm border rounded hover:bg-gray-50 flex items-center gap-1"
-          >
-            Category {getSortIcon('categoryId')}
-          </button>
-        </div>
+      {/* Sort Controls */}
+      <div className="flex items-center justify-end gap-2">
+        <span className="text-sm text-gray-600">Sort by:</span>
+        <button
+          onClick={() => handleSort('name')}
+          className="px-3 py-1 text-sm border rounded hover:bg-gray-50 flex items-center gap-1"
+        >
+          Name {getSortIcon('name')}
+        </button>
+        <button
+          onClick={() => handleSort('categoryId')}
+          className="px-3 py-1 text-sm border rounded hover:bg-gray-50 flex items-center gap-1"
+        >
+          Category {getSortIcon('categoryId')}
+        </button>
       </div>
 
       {/* Loading State */}

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import ImageWithFallback from "@/components/shared/ImageWithFallback";
-import AdminSearchBar from '@/components/admin/AdminSearchBar';
 import Pagination from '@/components/admin/Pagination';
 import dynamic from "next/dynamic";
 import apiClient from "@/services/api.config";
@@ -35,7 +34,6 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
     active: true,
     imageUrl: "",
   });
-  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalElements, setTotalElements] = useState(0);
@@ -45,65 +43,36 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
 
   useEffect(() => {
     loadCategories();
-  }, [showInactive, page, pageSize, search, sortField, sortDirection]);
+  }, [showInactive, page, pageSize, sortField, sortDirection]);
 
   const loadCategories = async () => {
     try {
       setLoading(true);
-      const q = search.trim();
 
-      // Use server-side search when there's a search query
-      if (q) {
-        const response = await categoryService.search({
-          searchText: q,
-          page: page - 1,
-          size: pageSize,
-          sortBy: sortField,
-          sortDir: sortDirection,
-        });
+      // Use server-side active/inactive endpoints with pagination
+      const response = showInactive 
+        ? await categoryService.getInactiveCategories({
+            page: page - 1,
+            size: pageSize,
+            sortBy: sortField,
+            sortDir: sortDirection,
+          })
+        : await categoryService.getActive({
+            page: page - 1,
+            size: pageSize,
+            sortBy: sortField,
+            sortDir: sortDirection,
+          });
 
-        if (response.success && response.data) {
-          const { content, totalElements: total, totalPages: pages } = response.data;
-          // Apply active/inactive filter on search results
-          const filteredCategories = showInactive 
-            ? content.filter(cat => cat.active === false)
-            : content.filter(cat => cat.active === true);
-          setCategories(filteredCategories);
-          // Recalculate pagination for filtered results
-          const totalFiltered = filteredCategories.length;
-          setTotalElements(totalFiltered);
-          setTotalPages(Math.ceil(totalFiltered / pageSize));
-        } else {
-          setCategories([]);
-          setTotalElements(0);
-          setTotalPages(0);
-        }
+      if (response.success && response.data) {
+        const { content, totalElements: total, totalPages: pages } = response.data;
+        setCategories(content);
+        setTotalElements(total);
+        setTotalPages(pages);
       } else {
-        // Use server-side active/inactive endpoints with pagination
-        const response = showInactive 
-          ? await categoryService.getInactiveCategories({
-              page: page - 1,
-              size: pageSize,
-              sortBy: sortField,
-              sortDir: sortDirection,
-            })
-          : await categoryService.getActive({
-              page: page - 1,
-              size: pageSize,
-              sortBy: sortField,
-              sortDir: sortDirection,
-            });
-
-        if (response.success && response.data) {
-          const { content, totalElements: total, totalPages: pages } = response.data;
-          setCategories(content);
-          setTotalElements(total);
-          setTotalPages(pages);
-        } else {
-          setCategories([]);
-          setTotalElements(0);
-          setTotalPages(0);
-        }
+        setCategories([]);
+        setTotalElements(0);
+        setTotalPages(0);
       }
     } catch (error) {
       console.error('Error loading categories:', error);
@@ -201,11 +170,6 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
     resetForm();
   };
 
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    setPage(1);
-  };
-
   const handleSort = (field: string) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -233,7 +197,6 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
           <p className="mt-1 text-sm text-gray-600">Manage all categories in the system</p>
         </div>
         <div className="flex items-center gap-4">
-          <AdminSearchBar value={search} onChange={handleSearch} placeholder="Tìm category..." />
           <div className="flex items-center gap-2">
             <span className={`text-sm ${!showInactive ? 'font-medium text-green-600' : 'text-gray-500'}`}>Active</span>
             <button

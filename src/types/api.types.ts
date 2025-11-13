@@ -174,14 +174,31 @@ export interface BowlTemplateRequest {
 }
 
 // Template Step Types
+export interface DefaultIngredientItem {
+  ingredientId: string;
+  ingredientName?: string;
+  quantity: number;
+  isDefault?: boolean;
+  unitPrice?: number;
+  unit?: string;
+}
+
+export interface DefaultIngredientItemRequest {
+  ingredientId: string;
+  quantity: number;
+  isDefault?: boolean;
+}
+
 export interface TemplateStep {
   id: string;
   templateId: string;
   categoryId: string;
+  category?: Category;
   minItems: number;
   maxItems: number;
   defaultQty: number;
   displayOrder: number;
+  defaultIngredients?: DefaultIngredientItem[];
 }
 
 export interface TemplateStepRequest {
@@ -191,6 +208,7 @@ export interface TemplateStepRequest {
   displayOrder: number;
   templateId: string;
   categoryId: string;
+  defaultIngredients?: DefaultIngredientItemRequest[];
 }
 
 // Store Types

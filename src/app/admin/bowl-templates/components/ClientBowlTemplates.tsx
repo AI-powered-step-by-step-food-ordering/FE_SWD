@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import AdminSearchBar from "@/components/admin/AdminSearchBar";
 import Pagination from "@/components/admin/Pagination";
 import dynamic from "next/dynamic";
 import { toast } from "react-toastify";
@@ -9,12 +8,15 @@ import { useRequireAdmin } from "@/hooks/useRequireAdmin";
 import bowlTemplateService from "@/services/bowlTemplate.service";
 import templateStepService from "@/services/templateStep.service";
 import categoryService from "@/services/category.service";
+import ingredientService from "@/services/ingredient.service";
 import type {
   BowlTemplate,
   BowlTemplateRequest,
   TemplateStep,
   TemplateStepRequest,
   Category,
+  Ingredient,
+  DefaultIngredientItemRequest,
 } from "@/types/api.types";
 import ImageWithFallback from "@/components/shared/ImageWithFallback";
 import { getFirebaseThumbnail } from "@/lib/firebase-storage";
@@ -40,8 +42,7 @@ export default function ClientBowlTemplates({
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
 
-  // Search & pagination (server-side)
-  const [search, setSearch] = useState<string>("");
+  // Pagination (server-side)
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
   const [totalElements, setTotalElements] = useState<number>(0);
@@ -77,13 +78,20 @@ export default function ClientBowlTemplates({
     displayOrder: 1,
     templateId: "",
     categoryId: "",
+    defaultIngredients: [],
   });
   const [editingStep, setEditingStep] = useState<TemplateStep | null>(null);
 
-  // Load templates with server-side pagination, search, sort, and filter
+  // Ingredients management
+  const [availableIngredients, setAvailableIngredients] = useState<
+    Ingredient[]
+  >([]);
+  const [ingredientsLoading, setIngredientsLoading] = useState<boolean>(false);
+
+  // Load templates with server-side pagination, sort, and filter
   useEffect(() => {
     loadTemplates();
-  }, [showInactive, page, pageSize, search, sortField, sortDirection]);
+  }, [showInactive, page, pageSize, sortField, sortDirection]);
 
   useEffect(() => {
     // Load categories once
@@ -111,58 +119,31 @@ export default function ClientBowlTemplates({
   const loadTemplates = async () => {
     try {
       setLoading(true);
-      const q = search.trim();
 
-      // Use server-side search when there's a search query
-      if (q) {
-        const response = await bowlTemplateService.search({
-          searchText: q,
-          page: page - 1,
-          size: pageSize,
-          sortBy: sortField,
-          sortDir: sortDirection,
-        });
+      // Use server-side active/inactive endpoints with pagination
+      const response = showInactive
+        ? await bowlTemplateService.getInactiveTemplates()
+        : await bowlTemplateService.getActive({
+            page: page - 1,
+            size: pageSize,
+            sortBy: sortField,
+            sortDir: sortDirection,
+          });
 
-        if (response.success && response.data) {
-          const {
-            content,
-            totalElements: total,
-            totalPages: pages,
-          } = response.data;
-          setTemplates(content);
-          setTotalElements(total);
-          setTotalPages(pages);
-        } else {
-          setTemplates([]);
-          setTotalElements(0);
-          setTotalPages(0);
-        }
+      if (response.success && response.data) {
+        // Handle both array and paged response formats
+        const data = response.data as any;
+        const content = Array.isArray(data) ? data : data.content || [];
+        const total = data.totalElements || content.length;
+        const pages = data.totalPages || Math.ceil(content.length / pageSize);
+
+        setTemplates(content);
+        setTotalElements(total);
+        setTotalPages(pages);
       } else {
-        // Use server-side active/inactive endpoints with pagination
-        const response = showInactive
-          ? await bowlTemplateService.getInactiveTemplates()
-          : await bowlTemplateService.getActive({
-              page: page - 1,
-              size: pageSize,
-              sortBy: sortField,
-              sortDir: sortDirection,
-            });
-
-        if (response.success && response.data) {
-          // Handle both array and paged response formats
-          const data = response.data as any;
-          const content = Array.isArray(data) ? data : data.content || [];
-          const total = data.totalElements || content.length;
-          const pages = data.totalPages || Math.ceil(content.length / pageSize);
-
-          setTemplates(content);
-          setTotalElements(total);
-          setTotalPages(pages);
-        } else {
-          setTemplates([]);
-          setTotalElements(0);
-          setTotalPages(0);
-        }
+        setTemplates([]);
+        setTotalElements(0);
+        setTotalPages(0);
       }
     } catch (err) {
       console.error("Failed to load templates", err);
@@ -205,11 +186,6 @@ export default function ClientBowlTemplates({
     });
     setIsEditTemplate(true);
     setShowTemplateModal(true);
-  };
-
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    setPage(1);
   };
 
   const handleSort = (field: string) => {
@@ -312,19 +288,42 @@ export default function ClientBowlTemplates({
     }
   };
 
+  const loadIngredientsByCategory = async (categoryId: string) => {
+    if (!categoryId) {
+      setAvailableIngredients([]);
+      return;
+    }
+    try {
+      setIngredientsLoading(true);
+      const ingredients = await ingredientService.getByCategory(categoryId);
+      setAvailableIngredients(ingredients || []);
+    } catch (err) {
+      console.error("Load ingredients error", err);
+      toast.error("Tải danh sách nguyên liệu thất bại");
+    } finally {
+      setIngredientsLoading(false);
+    }
+  };
+
   const openStepsModal = async (t: BowlTemplate) => {
     setSelectedTemplate(t);
     setShowStepsModal(true);
     setStepsLoading(true);
     setEditingStep(null);
+    const firstCategoryId = categories[0]?.id || "";
     setStepForm({
       minItems: 0,
       maxItems: 1,
       defaultQty: 1,
       displayOrder: 1,
       templateId: t.id,
-      categoryId: categories[0]?.id || "",
+      categoryId: firstCategoryId,
+      defaultIngredients: [],
     });
+    // Load ingredients for first category
+    if (firstCategoryId) {
+      loadIngredientsByCategory(firstCategoryId);
+    }
     try {
       const res = await templateStepService.getByTemplateId(t.id);
       const steps = (res.data || []).sort(
@@ -344,6 +343,77 @@ export default function ClientBowlTemplates({
     setSelectedTemplate(null);
     setTemplateSteps([]);
     setEditingStep(null);
+    setAvailableIngredients([]);
+  };
+
+  const handleCategoryChange = (categoryId: string) => {
+    setStepForm({ ...stepForm, categoryId, defaultIngredients: [] });
+    loadIngredientsByCategory(categoryId);
+  };
+
+  const addDefaultIngredient = () => {
+    const firstIngredient = availableIngredients[0];
+    if (!firstIngredient || !firstIngredient.id) {
+      toast.warn("Không có nguyên liệu nào trong danh mục này");
+      return;
+    }
+    const newItem: DefaultIngredientItemRequest = {
+      ingredientId: firstIngredient.id,
+      quantity: 100,
+      isDefault: true,
+    };
+    setStepForm({
+      ...stepForm,
+      defaultIngredients: [...(stepForm.defaultIngredients || []), newItem],
+    });
+  };
+
+  const removeDefaultIngredient = (index: number) => {
+    const updated = [...(stepForm.defaultIngredients || [])];
+    updated.splice(index, 1);
+    setStepForm({ ...stepForm, defaultIngredients: updated });
+  };
+
+  const updateDefaultIngredient = (
+    index: number,
+    field: keyof DefaultIngredientItemRequest,
+    value: any,
+  ) => {
+    const updated = [...(stepForm.defaultIngredients || [])];
+    updated[index] = { ...updated[index], [field]: value };
+    setStepForm({ ...stepForm, defaultIngredients: updated });
+  };
+
+  const editStep = (step: TemplateStep) => {
+    setEditingStep(step);
+    setStepForm({
+      minItems: step.minItems,
+      maxItems: step.maxItems,
+      defaultQty: step.defaultQty,
+      displayOrder: step.displayOrder,
+      templateId: step.templateId,
+      categoryId: step.categoryId,
+      defaultIngredients:
+        step.defaultIngredients?.map((item) => ({
+          ingredientId: item.ingredientId,
+          quantity: item.quantity,
+          isDefault: item.isDefault,
+        })) || [],
+    });
+    loadIngredientsByCategory(step.categoryId);
+  };
+
+  const cancelEditStep = () => {
+    setEditingStep(null);
+    setStepForm({
+      minItems: 0,
+      maxItems: 1,
+      defaultQty: 1,
+      displayOrder: 1,
+      templateId: selectedTemplate!.id,
+      categoryId: categories[0]?.id || "",
+      defaultIngredients: [],
+    });
   };
 
   const saveStep = async () => {
@@ -397,6 +467,7 @@ export default function ClientBowlTemplates({
             displayOrder: 1,
             templateId: selectedTemplate!.id,
             categoryId: categories[0]?.id || "",
+            defaultIngredients: [],
           });
         } else {
           toast.error(res.message || "Thêm bước thất bại");
@@ -448,11 +519,6 @@ export default function ClientBowlTemplates({
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <AdminSearchBar
-            placeholder="Search templates..."
-            value={search}
-            onChange={handleSearch}
-          />
           <div className="flex items-center gap-2">
             <span
               className={`text-sm ${!showInactive ? "font-medium text-green-600" : "text-gray-500"}`}
@@ -580,7 +646,7 @@ export default function ClientBowlTemplates({
                           alt={t.name}
                           width={80}
                           height={80}
-                          style={{ width: '80px', height: '80px' }}
+                          style={{ width: "80px", height: "80px" }}
                           className="rounded-lg object-cover"
                           fallbackSrc="/icon.svg"
                         />
@@ -758,9 +824,26 @@ export default function ClientBowlTemplates({
             />
             <div className="inline-block transform overflow-hidden rounded-lg bg-white text-left align-bottom shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-2xl sm:align-middle">
               <div className="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
-                <h3 className="mb-4 text-lg font-medium text-gray-900">
-                  Template Steps
-                </h3>
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-lg font-medium text-gray-900">
+                      Template Steps
+                    </h3>
+                    {editingStep && (
+                      <span className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800">
+                        <i className="bx bx-edit-alt"></i>
+                        Editing Step #{editingStep.displayOrder}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeStepsModal}
+                    className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-500"
+                  >
+                    <i className="bx bx-x text-2xl"></i>
+                  </button>
+                </div>
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -769,12 +852,7 @@ export default function ClientBowlTemplates({
                       </label>
                       <select
                         value={stepForm.categoryId || ""}
-                        onChange={(e) =>
-                          setStepForm({
-                            ...stepForm,
-                            categoryId: e.target.value,
-                          })
-                        }
+                        onChange={(e) => handleCategoryChange(e.target.value)}
                         className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
                       >
                         {categories.map((c) => (
@@ -849,6 +927,92 @@ export default function ClientBowlTemplates({
                       />
                     </div>
                   </div>
+
+                  {/* Default Ingredients Section */}
+                  <div className="mt-6 border-t pt-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <label className="text-sm font-medium text-gray-700">
+                        Default Ingredients
+                      </label>
+                      <button
+                        type="button"
+                        onClick={addDefaultIngredient}
+                        disabled={
+                          ingredientsLoading ||
+                          availableIngredients.length === 0
+                        }
+                        className="rounded-md bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:bg-gray-400"
+                      >
+                        + Add Ingredient
+                      </button>
+                    </div>
+
+                    {ingredientsLoading ? (
+                      <div className="text-center text-sm text-gray-500">
+                        Loading ingredients...
+                      </div>
+                    ) : availableIngredients.length === 0 ? (
+                      <div className="text-center text-sm text-gray-500">
+                        No ingredients in this category
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {(stepForm.defaultIngredients || []).map(
+                          (item, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center gap-2 rounded border border-gray-200 p-2"
+                            >
+                              <select
+                                value={item.ingredientId}
+                                onChange={(e) =>
+                                  updateDefaultIngredient(
+                                    idx,
+                                    "ingredientId",
+                                    e.target.value,
+                                  )
+                                }
+                                className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
+                              >
+                                {availableIngredients.map((ing) => (
+                                  <option key={ing.id} value={ing.id}>
+                                    {ing.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <input
+                                type="number"
+                                value={item.quantity}
+                                onChange={(e) =>
+                                  updateDefaultIngredient(
+                                    idx,
+                                    "quantity",
+                                    Number(e.target.value),
+                                  )
+                                }
+                                placeholder="Quantity"
+                                className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
+                              />
+                              <span className="text-xs text-gray-500">g</span>
+                              <button
+                                type="button"
+                                onClick={() => removeDefaultIngredient(idx)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                <i className="bx bx-trash text-lg"></i>
+                              </button>
+                            </div>
+                          ),
+                        )}
+                        {(stepForm.defaultIngredients || []).length === 0 && (
+                          <div className="text-center text-sm text-gray-400">
+                            No default ingredients added yet. Click "Add
+                            Ingredient" to start.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
@@ -859,13 +1023,15 @@ export default function ClientBowlTemplates({
                 >
                   {editingStep ? "Update Step" : "Add Step"}
                 </button>
-                <button
-                  type="button"
-                  onClick={closeStepsModal}
-                  className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-4 py-2 text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
-                >
-                  Cancel
-                </button>
+                {editingStep && (
+                  <button
+                    type="button"
+                    onClick={cancelEditStep}
+                    className="mt-3 inline-flex w-full justify-center rounded-md bg-gray-600 px-4 py-2 text-white shadow-sm hover:bg-gray-700 sm:ml-3 sm:mt-0 sm:w-auto"
+                  >
+                    Cancel Edit
+                  </button>
+                )}
               </div>
 
               <div className="px-6 pb-6">
@@ -894,8 +1060,11 @@ export default function ClientBowlTemplates({
                           Max
                         </th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">
-                          Default
+                          Default Qty
                         </th>
+                        {/* <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">
+                          Default Ingredients
+                        </th> */}
                         <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">
                           Actions
                         </th>
@@ -903,8 +1072,22 @@ export default function ClientBowlTemplates({
                     </thead>
                     <tbody className="divide-y divide-gray-200 bg-white">
                       {templateSteps.map((s) => (
-                        <tr key={s.id}>
-                          <td className="px-4 py-2">{s.displayOrder}</td>
+                        <tr 
+                          key={s.id}
+                          className={`${
+                            editingStep?.id === s.id 
+                              ? "bg-blue-50 border-l-4 border-l-blue-500" 
+                              : "hover:bg-gray-50"
+                          }`}
+                        >
+                          <td className="px-4 py-2">
+                            <div className="flex items-center gap-2">
+                              {editingStep?.id === s.id && (
+                                <i className="bx bx-edit-alt text-blue-600"></i>
+                              )}
+                              {s.displayOrder}
+                            </div>
+                          </td>
                           <td className="px-4 py-2">
                             {categories.find((c) => c.id === s.categoryId)
                               ?.name || s.categoryId}
@@ -912,22 +1095,42 @@ export default function ClientBowlTemplates({
                           <td className="px-4 py-2">{s.minItems}</td>
                           <td className="px-4 py-2">{s.maxItems}</td>
                           <td className="px-4 py-2">{s.defaultQty}</td>
+                          {/* <td className="px-4 py-2">
+                            {s.defaultIngredients && s.defaultIngredients.length > 0 ? (
+                              <div className="text-xs text-gray-600">
+                                {s.defaultIngredients.map((item, idx) => (
+                                  <div key={idx}>
+                                    {item.ingredientName || item.ingredientId}: {item.quantity}g
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400">None</span>
+                            )}
+                          </td> */}
                           <td className="px-4 py-2 text-right">
-                            <button
-                              onClick={() => {
-                                setEditingStep(s);
-                                setStepForm({ ...s });
-                              }}
-                              className="mr-4 text-blue-600 hover:text-blue-900"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => deleteStep(s)}
-                              className="text-red-600 hover:text-red-900"
-                            >
-                              Delete
-                            </button>
+                            {editingStep?.id === s.id ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800">
+                                <i className="bx bx-edit-alt"></i>
+                                Editing...
+                              </span>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => editStep(s)}
+                                  className="mr-4 text-blue-600 hover:text-blue-900"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => deleteStep(s)}
+                                  className="text-red-600 hover:text-red-900"
+                                  disabled={editingStep !== null}
+                                >
+                                  Delete
+                                </button>
+                              </>
+                            )}
                           </td>
                         </tr>
                       ))}

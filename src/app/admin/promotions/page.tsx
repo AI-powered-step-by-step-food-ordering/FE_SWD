@@ -9,7 +9,6 @@ import type { PromotionRequest as BackendPromotionRequest } from '@/types/api.ty
 import { toast } from 'react-toastify';
 import { formatVND } from '@/lib/format-number';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
-import AdminSearchBar from '@/components/admin/AdminSearchBar';
 import Pagination from '@/components/admin/Pagination';
 
 type PromotionForm = {
@@ -32,7 +31,6 @@ export default function PromotionsPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingPromotion, setEditingPromotion] = useState<UiPromotion | null>(null);
-  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [formData, setFormData] = useState<PromotionForm>({
@@ -164,17 +162,8 @@ export default function PromotionsPage() {
     return true;
   };
 
-  const filteredPromotions = promotions.filter((p) => {
-    const q = search.trim().toLowerCase();
-    if (!q) return true;
-    const name = p.name?.toLowerCase() || '';
-    const code = p.code?.toLowerCase() || '';
-    const description = p.description?.toLowerCase() || '';
-    return name.includes(q) || code.includes(q) || description.includes(q);
-  });
-
   const startIndex = (page - 1) * pageSize;
-  const pagedPromotions = filteredPromotions.slice(startIndex, startIndex + pageSize);
+  const pagedPromotions = promotions.slice(startIndex, startIndex + pageSize);
 
   return (
     <AdminLayout title="Promotions Management">
@@ -186,7 +175,6 @@ export default function PromotionsPage() {
             <p className="text-sm text-gray-600 mt-1">Manage all promotions in the system</p>
           </div>
           <div className="flex items-center gap-4">
-            <AdminSearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Tìm khuyến mãi..." />
           <button
             onClick={() => {
               resetForm();
@@ -206,7 +194,7 @@ export default function PromotionsPage() {
             <div className="col-span-full text-center py-12 text-gray-500">
               Loading...
             </div>
-          ) : filteredPromotions.length === 0 ? (
+          ) : promotions.length === 0 ? (
             <div className="col-span-full text-center py-12 text-gray-500">
               No promotions found
             </div>
@@ -271,7 +259,7 @@ export default function PromotionsPage() {
         <Pagination
           page={page}
           pageSize={pageSize}
-          total={filteredPromotions.length}
+          total={promotions.length}
           onPageChange={(p) => setPage(p)}
           onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
         />
