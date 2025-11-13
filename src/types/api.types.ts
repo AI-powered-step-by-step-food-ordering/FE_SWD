@@ -307,29 +307,22 @@ export interface Promotion {
   id: string;
   code: string;
   name: string;
-  type: string;
-  percentOff: number;
-  amountOff: number;
-  minOrderValue: number;
-  active?: boolean; // Backend uses 'active' field
+  discountPercent: number; // 0-100
+  active?: boolean;
+  imageUrl?: string;
+  createdAt?: string;
   startsAt?: string;
   endsAt?: string;
-  maxRedemptions?: number;
-  perOrderLimit?: number;
 }
 
 export interface PromotionRequest {
   code: string;
   name: string;
-  type: string;
-  percentOff: number;
-  amountOff: number;
-  minOrderValue: number;
-  startsAt?: string;
-  endsAt?: string;
-  maxRedemptions?: number;
-  perOrderLimit?: number;
-  active: boolean; // Active/Inactive status
+  discountPercent: number; // 0-100
+  startsAt?: string; // ISO OffsetDateTime
+  endsAt?: string; // ISO OffsetDateTime
+  isActive?: boolean; // Backend uses isActive in request
+  imageUrl?: string;
 }
 
 // Payment Transaction Types

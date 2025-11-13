@@ -27,11 +27,13 @@ class PromotionService {
 
   /**
    * Search promotions with server-side filtering, pagination, and sorting
-   * Backend expects: name, types (not searchText)
+   * Backend expects: promotionId, code, name, status (active/expired/upcoming/all)
    */
   async search(params?: { 
-    searchText?: string;
-    types?: string[];
+    promotionId?: string;
+    code?: string;
+    name?: string;
+    status?: string; // "active", "expired", "upcoming", "all"
     page?: number; 
     size?: number; 
     sortBy?: string; 
@@ -39,11 +41,10 @@ class PromotionService {
   }): Promise<ApiResponse<import('@/types/api.types').PagedResponse<Promotion>>> {
     const searchParams = new URLSearchParams();
 
-    // Backend expects 'name' parameter, not 'searchText'
-    if (params?.searchText) searchParams.append('name', params.searchText.trim());
-    if (params?.types && params.types.length > 0) {
-      params.types.forEach(type => searchParams.append('types', type));
-    }
+    if (params?.promotionId) searchParams.append('promotionId', params.promotionId);
+    if (params?.code) searchParams.append('code', params.code);
+    if (params?.name) searchParams.append('name', params.name);
+    if (params?.status) searchParams.append('status', params.status);
     if (params?.page !== undefined) searchParams.append('page', params.page.toString());
     if (params?.size !== undefined) searchParams.append('size', params.size.toString());
     if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
@@ -144,7 +145,27 @@ class PromotionService {
   }
 
   /**
-   * Delete promotion (Admin only)
+   * Soft delete promotion (Admin only)
+   */
+  async softDelete(id: string): Promise<ApiResponse<void>> {
+    const response = await apiClient.put<ApiResponse<void>>(
+      `/api/promotions/soft-delete/${id}`
+    );
+    return response.data;
+  }
+
+  /**
+   * Restore soft-deleted promotion (Admin only)
+   */
+  async restore(id: string): Promise<ApiResponse<void>> {
+    const response = await apiClient.put<ApiResponse<void>>(
+      `/api/promotions/restore/${id}`
+    );
+    return response.data;
+  }
+
+  /**
+   * Hard delete promotion (Admin only)
    */
   async delete(id: string): Promise<ApiResponse<Record<string, never>>> {
     const response = await apiClient.delete<ApiResponse<Record<string, never>>>(

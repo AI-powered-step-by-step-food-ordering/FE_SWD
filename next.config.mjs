@@ -67,6 +67,18 @@ const nextConfig = {
         hostname: "shredhappens.com",
         port: "",
       },
+      {
+        protocol: "https",
+        hostname: "www.seriouseats.com",
+        port: "",
+      },
+      {
+        protocol: "https",
+        hostname: "glendaembree.com",
+        port: "",
+      },
+      //HOW TO ADD ALL PROTOCOLS HOSTNAME ?
+
       // Added for external demo/example images
     ],
   },
