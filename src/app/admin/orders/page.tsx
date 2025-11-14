@@ -29,7 +29,7 @@ export default function OrdersPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
-  
+
   // Badge counts for each status
   const [statusCounts, setStatusCounts] = useState({
     PENDING: 0,
@@ -59,12 +59,13 @@ export default function OrdersPage() {
   const loadStatusCounts = async () => {
     try {
       // Fetch all 4 statuses in parallel to get totalElements for badges
-      const [pendingRes, confirmedRes, completedRes, cancelledRes] = await Promise.all([
-        orderService.search({ status: "PENDING", page: 0, size: 1 }),
-        orderService.search({ status: "CONFIRMED", page: 0, size: 1 }),
-        orderService.search({ status: "COMPLETED", page: 0, size: 1 }),
-        orderService.search({ status: "CANCELLED", page: 0, size: 1 }),
-      ]);
+      const [pendingRes, confirmedRes, completedRes, cancelledRes] =
+        await Promise.all([
+          orderService.search({ status: "PENDING", page: 0, size: 1 }),
+          orderService.search({ status: "CONFIRMED", page: 0, size: 1 }),
+          orderService.search({ status: "COMPLETED", page: 0, size: 1 }),
+          orderService.search({ status: "CANCELLED", page: 0, size: 1 }),
+        ]);
 
       setStatusCounts({
         PENDING: pendingRes.data?.totalElements || 0,
@@ -136,10 +137,13 @@ export default function OrdersPage() {
       setShowOrderModal(true);
 
       // Fetch full order details with store and template information
-      const orderResponse = await orderService.getById(order.id, ['store', 'template']);
+      const orderResponse = await orderService.getById(order.id, [
+        "store",
+        "template",
+      ]);
       if (orderResponse.success && orderResponse.data) {
         setSelectedOrder(orderResponse.data);
-        
+
         // Use bowls data from the order response
         const orderBowls = (orderResponse.data as any).bowls || [];
         setOrderBowls(orderBowls);
@@ -318,17 +322,21 @@ export default function OrdersPage() {
 
         {/* Stats */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {(["PENDING", "CONFIRMED", "COMPLETED", "CANCELLED"] as const).map((status) => {
-            const count = statusCounts[status];
-            return (
-              <div key={status} className="rounded-lg bg-white p-4 shadow-sm">
-                <p className="text-xs font-medium uppercase text-gray-600">
-                  {status.replace("_", " ")}
-                </p>
-                <p className="mt-1 text-2xl font-bold text-gray-900">{count}</p>
-              </div>
-            );
-          })}
+          {(["PENDING", "CONFIRMED", "COMPLETED", "CANCELLED"] as const).map(
+            (status) => {
+              const count = statusCounts[status];
+              return (
+                <div key={status} className="rounded-lg bg-white p-4 shadow-sm">
+                  <p className="text-xs font-medium uppercase text-gray-600">
+                    {status.replace("_", " ")}
+                  </p>
+                  <p className="mt-1 text-2xl font-bold text-gray-900">
+                    {count}
+                  </p>
+                </div>
+              );
+            },
+          )}
         </div>
 
         {/* Orders Table */}
@@ -408,7 +416,7 @@ export default function OrdersPage() {
                             />
                           ) : (
                             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-200">
-                              <i className="bx bx-store text-gray-400 text-xl"></i>
+                              <i className="bx bx-store text-xl text-gray-400"></i>
                             </div>
                           )}
                           <div>
@@ -557,7 +565,9 @@ export default function OrdersPage() {
                       <div className="mt-1 flex items-center gap-2">
                         {selectedOrder.store?.imageUrl ? (
                           <ImageWithFallback
-                            src={getFirebaseThumbnail(selectedOrder.store.imageUrl)}
+                            src={getFirebaseThumbnail(
+                              selectedOrder.store.imageUrl,
+                            )}
                             alt={selectedOrder.store.name || "Store"}
                             width={48}
                             height={48}
@@ -566,12 +576,14 @@ export default function OrdersPage() {
                           />
                         ) : (
                           <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-200">
-                            <i className="bx bx-store text-gray-400 text-2xl"></i>
+                            <i className="bx bx-store text-2xl text-gray-400"></i>
                           </div>
                         )}
                         <div>
                           <p className="text-sm font-medium">
-                            {selectedOrder.store?.name || selectedOrder.storeId || "N/A"}
+                            {selectedOrder.store?.name ||
+                              selectedOrder.storeId ||
+                              "N/A"}
                           </p>
                           {selectedOrder.store?.address && (
                             <p className="text-xs text-gray-500">
@@ -665,19 +677,21 @@ export default function OrdersPage() {
                           className="rounded border bg-white p-4"
                         >
                           <div className="mb-2 flex items-start justify-between">
-                            <div className="flex items-start gap-3 flex-1">
+                            <div className="flex flex-1 items-start gap-3">
                               {(bowl as any).template?.imageUrl ? (
                                 <ImageWithFallback
-                                  src={getFirebaseThumbnail((bowl as any).template.imageUrl)}
+                                  src={getFirebaseThumbnail(
+                                    (bowl as any).template.imageUrl,
+                                  )}
                                   alt={bowl.name || "Bowl"}
                                   width={80}
                                   height={80}
-                                  className="rounded-lg object-cover flex-shrink-0"
+                                  className="flex-shrink-0 rounded-lg object-cover"
                                   fallbackSrc="/icon.svg"
                                 />
                               ) : (
-                                <div className="flex h-20 w-20 items-center justify-center rounded-lg bg-gray-200 flex-shrink-0">
-                                  <i className="bx bx-bowl-rice text-gray-400 text-3xl"></i>
+                                <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-lg bg-gray-200">
+                                  <i className="bx bx-bowl-rice text-3xl text-gray-400"></i>
                                 </div>
                               )}
                               <div className="flex-1">
@@ -686,7 +700,7 @@ export default function OrdersPage() {
                                   Bowl ID: {bowl.id}
                                 </p>
                                 {(bowl as any).template?.name && (
-                                  <p className="text-xs text-gray-500 mt-1">
+                                  <p className="mt-1 text-xs text-gray-500">
                                     Template: {(bowl as any).template.name}
                                   </p>
                                 )}
@@ -763,70 +777,61 @@ export default function OrdersPage() {
                   )}
                 </div>
 
-                {/* Payment Transactions */}
+                {/* Payment Transaction */}
                 <div className="rounded-lg bg-gray-50 p-4">
                   <h3 className="mb-3 text-lg font-semibold">
-                    Payment Transactions ({paymentTransactions.length})
+                    Payment Transaction
                   </h3>
                   {paymentTransactions.length === 0 ? (
                     <p className="text-gray-500">
-                      No payment transactions found for this order.
+                      No payment transaction found for this order.
                     </p>
                   ) : (
-                    <div className="space-y-3">
-                      {paymentTransactions.map((payment) => (
-                        <div
-                          key={payment.id}
-                          className="rounded border bg-white p-4"
-                        >
-                          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                            <div>
-                              <span className="text-sm text-gray-600">
-                                Transaction ID:
-                              </span>
-                              <p className="font-mono text-sm">{payment.id}</p>
-                            </div>
-                            <div>
-                              <span className="text-sm text-gray-600">
-                                Amount:
-                              </span>
-                              <p className="font-semibold">
-                                {formatVND(payment.amount ?? 0)}
-                              </p>
-                            </div>
-                            <div>
-                              <span className="text-sm text-gray-600">
-                                Status:
-                              </span>
-                              <p className="text-sm">
-                                {payment.status || "Unknown"}
-                              </p>
-                            </div>
-                            <div>
-                              <span className="text-sm text-gray-600">
-                                Method:
-                              </span>
-                              <p className="text-sm">
-                                {(payment as any).paymentMethod ||
-                                  (payment as any).method ||
-                                  "Unknown"}
-                              </p>
-                            </div>
-                          </div>
-                          {(payment as any).transactionId ||
-                          (payment as any).providerTxnId ? (
-                            <div className="mt-2">
-                              <span className="text-sm text-gray-600">
-                                External Transaction ID:
-                              </span>
-                              <p className="font-mono text-sm">
-                                {(payment as any).transactionId ||
-                                  (payment as any).providerTxnId}
-                              </p>
-                            </div>
-                          ) : null}
+                    <div className="rounded border bg-white p-4">
+                      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                        <div>
+                          <span className="text-sm text-gray-600">
+                            Transaction ID:
+                          </span>
+                          <p className="font-mono text-sm">
+                            {paymentTransactions[0].id}
+                          </p>
                         </div>
-                      ))}
+                        <div>
+                          <span className="text-sm text-gray-600">
+                            Amount:
+                          </span>
+                          <p className="font-semibold">
+                            {formatVND(paymentTransactions[0].amount ?? 0)}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-600">Method:</span>
+                          <p className="text-sm">
+                            {(paymentTransactions[0] as any).paymentMethod ||
+                              (paymentTransactions[0] as any).method ||
+                              "Unknown"}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-600">Status:</span>
+                          <p className="text-sm">
+                            {String((paymentTransactions[0] as any).status || "Unknown")}
+                          </p>
+                        </div>
+                      </div>
+                      {(paymentTransactions[0] as any).transactionId ||
+                      (paymentTransactions[0] as any).providerTxnId ? (
+                        <div className="mt-2">
+                          <span className="text-sm text-gray-600">
+                            External Transaction ID:
+                          </span>
+                          <p className="font-mono text-sm">
+                            {(paymentTransactions[0] as any).transactionId ||
+                              (paymentTransactions[0] as any).providerTxnId}
+                          </p>
+                        </div>
+                      ) : null}
                     </div>
                   )}
                 </div>

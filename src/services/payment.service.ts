@@ -55,7 +55,7 @@ class PaymentService {
    */
   async getByOrderId(orderId: string): Promise<ApiResponse<PaymentTransaction[]>> {
     const response = await apiClient.get<ApiResponse<PaymentTransaction[]>>(
-      `/api/payment_transactions/getbyorder/${orderId}`
+      `/api/payment_transactions/getbyorderid/${orderId}`
     );
     return response.data;
   }
