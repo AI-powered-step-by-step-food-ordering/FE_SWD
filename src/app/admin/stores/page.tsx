@@ -29,6 +29,7 @@ export default function StoresPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [showInactive, setShowInactive] = useState(false);
   const [formData, setFormData] = useState<StoreForm>({
     name: '',
     address: '',
@@ -40,19 +41,25 @@ export default function StoresPage() {
 
   useEffect(() => {
     loadStores();
-  }, [page, pageSize, sortField, sortDirection]);
+  }, [page, pageSize, sortField, sortDirection, showInactive]);
 
   const loadStores = async () => {
     try {
       setLoading(true);
       
-      // Use the getAll endpoint with pagination and sorting
-      const response = await storeService.getAll({
+      const params = {
         page: page - 1, // Backend uses 0-based indexing
         size: pageSize,
         sortBy: sortField,
         sortDir: sortDirection,
-      });
+      };
+
+      let response;
+      if (showInactive) {
+        response = await storeService.getInactive(params);
+      } else {
+        response = await storeService.getActive(params);
+      }
       
       if (response.success && response.data) {
         const data = response.data as any;
@@ -161,13 +168,14 @@ export default function StoresPage() {
             <p className="text-sm text-gray-600 mt-1">Manage all stores in the system</p>
           </div>
           <div className="flex items-center gap-4">
+            {/* Sort Dropdown */}
             <select
               value={`${sortField}-${sortDirection}`}
               onChange={(e) => {
                 const [field, direction] = e.target.value.split('-');
                 handleSort(field, direction as 'asc' | 'desc');
               }}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="name-asc">Name (A-Z)</option>
               <option value="name-desc">Name (Z-A)</option>
@@ -176,16 +184,41 @@ export default function StoresPage() {
               <option value="active-desc">Active First</option>
               <option value="active-asc">Inactive First</option>
             </select>
-          <button
-            onClick={() => {
-              resetForm();
-              setShowModal(true);
-            }}
-            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <i className="bx bx-plus text-[20px]"></i>
-            Add Store
-          </button>
+            
+            {/* Toggle for Active/Inactive Stores */}
+            <div className="flex items-center  rounded-full px-1 py-1">
+              <span className={`text-sm font-medium px-3 transition-colors ${!showInactive ? 'text-green-600' : 'text-gray-500'}`}>
+                Active
+              </span>
+              <button
+                onClick={() => {
+                  setShowInactive(!showInactive);
+                  setPage(1); // Reset to first page when toggling
+                }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  !showInactive ? 'bg-green-600' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform shadow-md ${
+                    !showInactive ? 'translate-x-1' : 'translate-x-5'
+                  }`}
+                />
+              </button>
+              <span className={`text-sm font-medium px-3 transition-colors ${showInactive ? 'text-gray-700' : 'text-gray-400'}`}>
+                Inactive
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                resetForm();
+                setShowModal(true);
+              }}
+              className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <i className="bx bx-plus text-[20px]"></i>
+              Add Store
+            </button>
           </div>
         </div>
 
