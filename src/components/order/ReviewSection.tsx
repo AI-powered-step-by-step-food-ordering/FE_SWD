@@ -49,9 +49,13 @@ export default function ReviewSection({ selectedItems, totalPrice, totalNutritio
       try {
         const response = await storeService.getAll();
         if (response.success) {
-          setStores(response.data);
-          if (response.data.length > 0) {
-            setSelectedStore(response.data[0].id);
+          // Handle both PagedResponse and array formats
+          const storesArray = Array.isArray(response.data) 
+            ? response.data 
+            : (response.data as any).content || [];
+          setStores(storesArray);
+          if (storesArray.length > 0) {
+            setSelectedStore(storesArray[0].id);
           }
         }
       } catch (error) {

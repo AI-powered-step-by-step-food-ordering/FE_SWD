@@ -355,7 +355,7 @@ export default function ClientBowlTemplates({
       (item) => item.ingredientId,
     );
     const availableToAdd = availableIngredients.filter(
-      (ing) => !alreadyAddedIds.includes(ing.id),
+      (ing) => ing.id && !alreadyAddedIds.includes(ing.id),
     );
 
     if (availableToAdd.length === 0) {
