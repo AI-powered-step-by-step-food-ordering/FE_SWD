@@ -29,6 +29,14 @@ export default function OrdersPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
+  
+  // Badge counts for each status
+  const [statusCounts, setStatusCounts] = useState({
+    PENDING: 0,
+    CONFIRMED: 0,
+    COMPLETED: 0,
+    CANCELLED: 0,
+  });
 
   // Modal state for order details
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -43,6 +51,31 @@ export default function OrdersPage() {
   useEffect(() => {
     loadOrders();
   }, [page, pageSize, filter, search]);
+
+  useEffect(() => {
+    loadStatusCounts();
+  }, []);
+
+  const loadStatusCounts = async () => {
+    try {
+      // Fetch all 4 statuses in parallel to get totalElements for badges
+      const [pendingRes, confirmedRes, completedRes, cancelledRes] = await Promise.all([
+        orderService.search({ status: "PENDING", page: 0, size: 1 }),
+        orderService.search({ status: "CONFIRMED", page: 0, size: 1 }),
+        orderService.search({ status: "COMPLETED", page: 0, size: 1 }),
+        orderService.search({ status: "CANCELLED", page: 0, size: 1 }),
+      ]);
+
+      setStatusCounts({
+        PENDING: pendingRes.data?.totalElements || 0,
+        CONFIRMED: confirmedRes.data?.totalElements || 0,
+        COMPLETED: completedRes.data?.totalElements || 0,
+        CANCELLED: cancelledRes.data?.totalElements || 0,
+      });
+    } catch (error) {
+      console.error("Failed to load status counts:", error);
+    }
+  };
 
   const loadOrders = async () => {
     try {
@@ -159,6 +192,8 @@ export default function OrdersPage() {
           ),
         );
         toast.success("Order confirmed successfully");
+        // Reload status counts after status change
+        loadStatusCounts();
       } else {
         toast.error(response.data?.message || "Failed to confirm order");
       }
@@ -186,6 +221,8 @@ export default function OrdersPage() {
           ),
         );
         toast.success("Order completed successfully");
+        // Reload status counts after status change
+        loadStatusCounts();
       } else {
         toast.error(response.data?.message || "Failed to complete order");
       }
@@ -214,6 +251,8 @@ export default function OrdersPage() {
           ),
         );
         toast.success("Order cancelled successfully");
+        // Reload status counts after status change
+        loadStatusCounts();
       } else {
         toast.error(response.data?.message || "Failed to cancel order");
       }
@@ -279,8 +318,8 @@ export default function OrdersPage() {
 
         {/* Stats */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {["PENDING", "CONFIRMED", "COMPLETED", "CANCELLED"].map((status) => {
-            const count = orders.filter((o) => o.status === status).length;
+          {(["PENDING", "CONFIRMED", "COMPLETED", "CANCELLED"] as const).map((status) => {
+            const count = statusCounts[status];
             return (
               <div key={status} className="rounded-lg bg-white p-4 shadow-sm">
                 <p className="text-xs font-medium uppercase text-gray-600">

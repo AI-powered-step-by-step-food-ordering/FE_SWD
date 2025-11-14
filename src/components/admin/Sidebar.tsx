@@ -61,7 +61,7 @@ export default function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                 aria-label="Return"
                 title="Return"
               >
-                <i className="bx bx-arrow-back text-[22px]" aria-hidden="true"></i>
+                <i className="bx bx-home text-[22px]" aria-hidden="true"></i>
               </Link>
             </div>
             <button
