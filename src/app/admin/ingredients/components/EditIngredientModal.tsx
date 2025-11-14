@@ -118,7 +118,7 @@ export default function EditIngredientModal({ ingredient, categories, onClose, o
               >
                 <option value="">Select category...</option>
                 {(Array.isArray(categories) ? categories : [])
-                  .filter((c) => c.isActive)
+                  .filter((c) => c.active)
                   .map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}

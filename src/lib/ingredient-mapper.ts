@@ -176,7 +176,7 @@ export async function fetchFoodDataFromAPI(): Promise<GroupedIngredients> {
     
     const categoriesPage = categoriesResponse.data;
     const ingredientsPage = ingredientsResponse.data;
-    const categories = (categoriesPage?.content ?? []).filter((cat: Category) => cat.isActive);
+    const categories = (categoriesPage?.content ?? []).filter((cat: Category) => cat.active);
     const ingredients = ingredientsPage?.content ?? [];
     
     // Group and return

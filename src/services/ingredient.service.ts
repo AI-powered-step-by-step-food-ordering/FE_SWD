@@ -42,21 +42,6 @@ class IngredientService {
   }
 
   /**
-   * Get all ingredients (legacy method for backward compatibility)
-   */
-  async getAllLegacy(): Promise<ApiResponse<Ingredient[]>> {
-    const response = await apiClient.get<ApiResponse<any>>('/api/ingredients/getall');
-    const res = response.data as ApiResponse<any>;
-    if (Array.isArray(res.data)) {
-      return res as ApiResponse<Ingredient[]>;
-    }
-    if (res.data?.content) {
-      return { ...res, data: res.data.content } as ApiResponse<Ingredient[]>;
-    }
-    return res as ApiResponse<Ingredient[]>;
-  }
-
-  /**
    * Search ingredients with server-side filtering, pagination, and sorting
    * Backend expects: name, categoryId (not searchText)
    */

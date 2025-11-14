@@ -43,21 +43,6 @@ class StoreService {
   }
 
   /**
-   * Get all stores (legacy method for backward compatibility)
-   */
-  async getAllLegacy(): Promise<ApiResponse<Store[]>> {
-    const response = await apiClient.get<ApiResponse<any>>('/api/stores/getall');
-    const res = response.data as ApiResponse<any>;
-    if (Array.isArray(res.data)) {
-      return res as ApiResponse<Store[]>;
-    }
-    if (res.data?.content) {
-      return { ...res, data: res.data.content } as ApiResponse<Store[]>;
-    }
-    return res as ApiResponse<Store[]>;
-  }
-
-  /**
    * Get active stores with pagination
    */
   async getActive(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Store>>> {
