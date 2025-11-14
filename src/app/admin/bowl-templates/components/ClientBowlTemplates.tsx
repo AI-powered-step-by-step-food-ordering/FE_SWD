@@ -208,9 +208,7 @@ export default function ClientBowlTemplates({
   };
 
   const handleSoftDelete = async (id: string) => {
-    if (
-      window.confirm("Are you sure you want to delete this bowl template?")
-    ) {
+    if (window.confirm("Are you sure you want to delete this bowl template?")) {
       try {
         await bowlTemplateService.softDelete(id);
         toast.success("Bowl template deleted successfully");
@@ -352,7 +350,20 @@ export default function ClientBowlTemplates({
   };
 
   const addDefaultIngredient = () => {
-    const firstIngredient = availableIngredients[0];
+    // Get ingredients that haven't been added yet
+    const alreadyAddedIds = (stepForm.defaultIngredients || []).map(
+      (item) => item.ingredientId,
+    );
+    const availableToAdd = availableIngredients.filter(
+      (ing) => !alreadyAddedIds.includes(ing.id),
+    );
+
+    if (availableToAdd.length === 0) {
+      toast.warn("Tất cả nguyên liệu đã được thêm vào");
+      return;
+    }
+
+    const firstIngredient = availableToAdd[0];
     if (!firstIngredient || !firstIngredient.id) {
       toast.warn("Không có nguyên liệu nào trong danh mục này");
       return;
@@ -826,8 +837,8 @@ export default function ClientBowlTemplates({
               <div className="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <h3 className="text-lg font-medium text-gray-900">
-                      Template Steps
+                    <h3 className="text-lg font-bold text-gray-900">
+                      {selectedTemplate?.name}
                     </h3>
                     {editingStep && (
                       <span className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800">
@@ -935,17 +946,19 @@ export default function ClientBowlTemplates({
                         <label className="text-sm font-medium text-gray-700">
                           Default Ingredients
                         </label>
-                        <button
-                          type="button"
-                          onClick={addDefaultIngredient}
-                          disabled={
-                            ingredientsLoading ||
-                            availableIngredients.length === 0
-                          }
-                          className="rounded-md bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:bg-gray-400"
-                        >
-                          + Add Ingredient
-                        </button>
+                        {(stepForm.defaultIngredients || []).length === 0 && (
+                          <button
+                            type="button"
+                            onClick={addDefaultIngredient}
+                            disabled={
+                              ingredientsLoading ||
+                              availableIngredients.length === 0
+                            }
+                            className="rounded-md bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:bg-gray-400"
+                          >
+                            + Add Ingredient
+                          </button>
+                        )}
                       </div>
 
                       {ingredientsLoading ? (
@@ -975,11 +988,21 @@ export default function ClientBowlTemplates({
                                   }
                                   className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
                                 >
-                                  {availableIngredients.map((ing) => (
-                                    <option key={ing.id} value={ing.id}>
-                                      {ing.name}
-                                    </option>
-                                  ))}
+                                  {availableIngredients
+                                    .filter(
+                                      (ing) =>
+                                        ing.id === item.ingredientId ||
+                                        !(
+                                          stepForm.defaultIngredients || []
+                                        ).some(
+                                          (di) => di.ingredientId === ing.id,
+                                        ),
+                                    )
+                                    .map((ing) => (
+                                      <option key={ing.id} value={ing.id}>
+                                        {ing.name}
+                                      </option>
+                                    ))}
                                 </select>
                                 <input
                                   type="number"
@@ -1074,11 +1097,11 @@ export default function ClientBowlTemplates({
                     </thead>
                     <tbody className="divide-y divide-gray-200 bg-white">
                       {templateSteps.map((s) => (
-                        <tr 
+                        <tr
                           key={s.id}
                           className={`${
-                            editingStep?.id === s.id 
-                              ? "bg-blue-50 border-l-4 border-l-blue-500" 
+                            editingStep?.id === s.id
+                              ? "border-l-4 border-l-blue-500 bg-blue-50"
                               : "hover:bg-gray-50"
                           }`}
                         >
