@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import ImageWithFallback from '@/components/shared/ImageWithFallback';
 import AdminLayout from '@/components/admin/AdminLayout';
 import dynamic from 'next/dynamic';

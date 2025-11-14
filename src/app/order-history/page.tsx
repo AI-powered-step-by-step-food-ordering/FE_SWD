@@ -69,10 +69,6 @@ export default function OrderHistoryPage() {
     fetchOrders();
   }, [router, currentPage]);
 
-  const handleReorder = (order: Order) => {
-    router.push('/order');
-  };
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'COMPLETED': return 'text-green-600 bg-green-100';
@@ -123,7 +119,7 @@ export default function OrderHistoryPage() {
       } catch {}
     };
     if (paginatedOrders.length) fetchMethods();
-  }, [paginatedOrders]);
+  }, [paginatedOrders, FETCH_PAYMENT_METHODS]);
 
   if (isLoading) {
     return (
@@ -146,34 +142,40 @@ export default function OrderHistoryPage() {
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-xl p-6 shadow-lg">
-            <div className="flex items-center space-x-3">
-              <span className="text-2xl">📦</span>
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 shadow-lg border-2 border-blue-200 hover:shadow-xl transition-shadow">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-gray-900">{orders.length}</p>
-                <p className="text-sm text-gray-600">Total Orders</p>
+                <p className="text-3xl font-bold text-blue-900 mb-1">{orders.length}</p>
+                <p className="text-sm font-medium text-blue-700">Total Orders</p>
+              </div>
+              <div className="w-16 h-16 bg-blue-200 rounded-full flex items-center justify-center">
+                <i className="bx bx-package text-3xl text-blue-600"></i>
               </div>
             </div>
           </div>
           
-          <div className="bg-white rounded-xl p-6 shadow-lg">
-            <div className="flex items-center space-x-3">
-              <span className="text-2xl">💰</span>
+          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 shadow-lg border-2 border-green-200 hover:shadow-xl transition-shadow">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-gray-900">
-                  {formatVND(orders.reduce((sum, order) => sum + Math.round(order.totalPrice || 0), 0))}
+                <p className="text-3xl font-bold text-green-900 mb-1">
+                  {formatVND(orders.reduce((sum, order) => sum + Math.round(order.totalPrice || 0), 0), false)}
                 </p>
-                <p className="text-sm text-gray-600">Total Spent</p>
+                <p className="text-sm font-medium text-green-700">Total Spent</p>
+              </div>
+              <div className="w-16 h-16 bg-green-200 rounded-full flex items-center justify-center">
+                <i className="bx bx-money text-3xl text-green-600"></i>
               </div>
             </div>
           </div>
           
-          <div className="bg-white rounded-xl p-6 shadow-lg">
-            <div className="flex items-center space-x-3">
-              <span className="text-2xl">🕒</span>
+          <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 shadow-lg border-2 border-purple-200 hover:shadow-xl transition-shadow">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-gray-900">{orders.length ? 'Active' : '—'}</p>
-                <p className="text-sm text-gray-600">Status</p>
+                <p className="text-3xl font-bold text-purple-900 mb-1">{orders.length ? 'Active' : '—'}</p>
+                <p className="text-sm font-medium text-purple-700">Status</p>
+              </div>
+              <div className="w-16 h-16 bg-purple-200 rounded-full flex items-center justify-center">
+                <i className="bx bx-time text-3xl text-purple-600"></i>
               </div>
             </div>
           </div>
@@ -182,53 +184,63 @@ export default function OrderHistoryPage() {
         {/* Orders Grid */}
         <div className="space-y-6">
           {orders.length === 0 ? (
-            <div className="bg-white rounded-2xl p-12 text-center shadow-lg">
-              <span className="text-6xl mb-4 block">🥗</span>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">No Orders Yet</h2>
-              <p className="text-gray-600 mb-6">Start building your first healthy bowl!</p>
+            <div className="bg-gradient-to-br from-white to-green-50 rounded-2xl p-12 text-center shadow-lg border-2 border-green-100">
+              <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i className="bx bx-bowl-rice text-5xl text-green-600"></i>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">No Orders Yet</h2>
+              <p className="text-gray-600 mb-8 text-lg">Start building your first healthy bowl!</p>
               <button
                 onClick={() => router.push('/order')}
-                className="bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-8 py-4 rounded-xl font-semibold hover:from-green-700 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2 mx-auto"
               >
-                Build Your First Bowl
+                <i className="bx bx-plus-circle text-xl"></i>
+                <span>Build Your First Bowl</span>
               </button>
             </div>
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {paginatedOrders.map((order) => (
-                  <div key={order.id} className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                    <div className="p-6 border-b border-gray-100">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-3">
-                          <h3 className="text-lg font-bold text-gray-900">Order #{order.id}</h3>
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
-                            {order.status}
-                          </span>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm text-gray-600">{formatDate(order.date)}</p>
+                  <div key={order.id} className="bg-white rounded-2xl shadow-lg overflow-hidden border-2 border-gray-100 hover:border-green-300 hover:shadow-xl transition-all duration-300">
+                    <div className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="text-lg font-bold text-gray-900">Order #{order.id.slice(0, 8)}...</h3>
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.status)}`}>
+                              {order.status}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-500 mb-3">
+                            <i className="bx bx-calendar text-base mr-1"></i>
+                            {formatDate(order.date)}
+                          </p>
                         </div>
                       </div>
-                      <div className="text-sm text-gray-700">Total: {formatVND(order.totalPrice || 0)}</div>
+                      
+                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 mb-4 border border-green-200">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-600">Total Amount:</span>
+                          <span className="text-2xl font-bold text-green-700">
+                            {formatVND(order.totalPrice || 0)}
+                          </span>
+                        </div>
+                      </div>
+                      
                       {orderIdToPaymentMethod[order.id] && (
-                        <div className="mt-2 text-xs inline-flex items-center px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-100">
-                          Method: {orderIdToPaymentMethod[order.id]}
+                        <div className="mb-4 inline-flex items-center px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-medium">
+                          <i className="bx bx-credit-card text-base mr-1"></i>
+                          {orderIdToPaymentMethod[order.id]}
                         </div>
                       )}
-                    </div>
-                    <div className="p-6 flex gap-3">
+                      
                       <button
                         onClick={() => router.push(`/order-history/${order.id}`)}
-                        className="px-4 py-2 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200"
+                        className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg font-semibold hover:from-green-700 hover:to-emerald-700 transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                       >
-                        📋 View Details
-                      </button>
-                      <button
-                        onClick={() => handleReorder(order)}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                      >
-                        ⚡ Reorder
+                        <i className="bx bx-detail text-xl"></i>
+                        <span>View Details</span>
                       </button>
                     </div>
                   </div>
@@ -236,56 +248,37 @@ export default function OrderHistoryPage() {
               </div>
 
               {/* Pagination */}
-              <div className="mt-6 flex items-center justify-between">
+              <div className="mt-8 flex items-center justify-between bg-white rounded-xl p-4 shadow-md">
                 <button
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={safePage === 1}
-                  className={`px-4 py-2 rounded-lg border ${safePage === 1 ? 'text-gray-400 border-gray-200 cursor-not-allowed' : 'text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                  className={`px-6 py-2.5 rounded-lg font-medium transition-all ${
+                    safePage === 1 
+                      ? 'text-gray-400 bg-gray-100 cursor-not-allowed' 
+                      : 'text-gray-700 bg-gray-50 hover:bg-gray-100 hover:shadow-md border border-gray-200'
+                  }`}
                 >
-                  ← Prev
+                  <i className="bx bx-chevron-left text-xl mr-1"></i>
+                  Previous
                 </button>
-                <div className="text-sm text-gray-600">
-                  Page {safePage} of {totalPages}
+                <div className="text-sm font-semibold text-gray-700 bg-gray-50 px-4 py-2 rounded-lg">
+                  Page <span className="text-green-600">{safePage}</span> of <span className="text-green-600">{totalPages}</span>
                 </div>
                 <button
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                   disabled={safePage === totalPages}
-                  className={`px-4 py-2 rounded-lg border ${safePage === totalPages ? 'text-gray-400 border-gray-200 cursor-not-allowed' : 'text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                  className={`px-6 py-2.5 rounded-lg font-medium transition-all ${
+                    safePage === totalPages 
+                      ? 'text-gray-400 bg-gray-100 cursor-not-allowed' 
+                      : 'text-gray-700 bg-gray-50 hover:bg-gray-100 hover:shadow-md border border-gray-200'
+                  }`}
                 >
-                  Next →
+                  Next
+                  <i className="bx bx-chevron-right text-xl ml-1"></i>
                 </button>
               </div>
             </>
           )}
-        </div>
-
-        {/* Quick Actions */}
-        <div className="mt-8 bg-white rounded-2xl p-6 shadow-lg">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <button
-              onClick={() => router.push('/order')}
-              className="p-4 border-2 border-green-200 rounded-lg hover:border-green-300 transition-colors text-left"
-            >
-              <div className="flex items-center space-x-3">
-                <span className="text-2xl">🥗</span>
-                <div>
-                  <p className="font-medium text-gray-900">Build New Bowl</p>
-                  <p className="text-sm text-gray-600">Create a fresh personalized meal</p>
-                </div>
-              </div>
-            </button>
-            
-            <button className="p-4 border-2 border-blue-200 rounded-lg hover:border-blue-300 transition-colors text-left">
-              <div className="flex items-center space-x-3">
-                <span className="text-2xl">📊</span>
-                <div>
-                  <p className="font-medium text-gray-900">Nutrition Insights</p>
-                  <p className="text-sm text-gray-600">View your eating patterns</p>
-                </div>
-              </div>
-            </button>
-          </div>
         </div>
       </div>
     </div>

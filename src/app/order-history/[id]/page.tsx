@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { orderService, bowlService, paymentService } from '@/services';
 import { Order, Bowl, PaymentTransaction } from '@/types/api.types';
 import { formatVND } from '@/lib/format-number';
+import ImageWithFallback from '@/components/shared/ImageWithFallback';
+import { getFirebaseThumbnail } from '@/lib/firebase-storage';
 
 export default function OrderTrackingPage() {
   const params = useParams();
@@ -49,7 +51,7 @@ export default function OrderTrackingPage() {
     } finally {
       setLoading(false);
     }
-  }, [orderId]);
+  }, [orderId, FETCH_PAYMENTS]);
 
   useEffect(() => {
     if (orderId) {
@@ -59,53 +61,35 @@ export default function OrderTrackingPage() {
 
   const loadBowls = async (orderId: string) => {
     try {
-      // In a real app, you'd have an endpoint to get bowls by order ID
-      // For now, we'll simulate this
+      // Fetch bowls with items for this order
       const bowlsRes = await bowlService.getAll({ page: 0, size: 200 });
       if (bowlsRes.data) {
         const list = (bowlsRes.data?.content || []) as any[];
-        setBowls(list.filter((bowl: any) => bowl.orderId === orderId));
+        const orderBowls = list.filter((bowl: any) => bowl.orderId === orderId);
+        
+        // Fetch items for each bowl
+        const bowlsWithItems = await Promise.all(
+          orderBowls.map(async (bowl: any) => {
+            try {
+              const bowlWithItems = await bowlService.getByIdWithItems(bowl.id);
+              if (bowlWithItems.data) {
+                return bowlWithItems.data;
+              }
+              return bowl;
+            } catch (err) {
+              console.error(`Error loading items for bowl ${bowl.id}:`, err);
+              return bowl;
+            }
+          })
+        );
+        
+        setBowls(bowlsWithItems);
       }
     } catch (err) {
       console.error('Error loading bowls:', err);
     }
   };
 
-  const handleCancelOrder = async () => {
-    if (!order) return;
-
-    try {
-      const response = await orderService.cancel(order.id, 'Cancelled by user');
-      if (response.data) {
-        setOrder(response.data);
-        alert('Order cancelled successfully');
-      } else {
-        alert('Failed to cancel order');
-      }
-    } catch (err) {
-      alert('Failed to cancel order');
-      console.error('Error cancelling order:', err);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'DRAFT':
-        return 'bg-gray-100 text-gray-800';
-      case 'CONFIRMED':
-        return 'bg-blue-100 text-blue-800';
-      case 'PREPARING':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'READY':
-        return 'bg-green-100 text-green-800';
-      case 'COMPLETED':
-        return 'bg-green-100 text-green-800';
-      case 'CANCELLED':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
 
   const getStatusText = (status: string) => {
     switch (status) {
@@ -126,9 +110,6 @@ export default function OrderTrackingPage() {
     }
   };
 
-  const canCancelOrder = (status: string) => {
-    return status === 'DRAFT' || status === 'CONFIRMED';
-  };
 
   if (loading) {
     return (
@@ -158,41 +139,144 @@ export default function OrderTrackingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Order Tracking</h1>
-          <p className="text-xl text-gray-600">Order #{order.id}</p>
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header with back button */}
+        <div className="mb-6">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-2 text-gray-700 hover:text-gray-900 transition-colors"
+          >
+            <i className="bx bx-arrow-back text-2xl"></i>
+            <span className="text-lg font-medium">Go back</span>
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Column - Order Details */}
-          <div className="space-y-6">
-            {/* Order Status */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Order Status</h2>
-              <div className="flex items-center justify-between">
-                <span className={`px-4 py-2 rounded-full text-sm font-medium ${getStatusColor(order.status)}`}>
-                  {getStatusText(order.status)}
-                </span>
-                {canCancelOrder(order.status) && (
-                  <button
-                    onClick={handleCancelOrder}
-                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-                  >
-                    Cancel Order
-                  </button>
-                )}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+          {/* Left Column - Món ăn (Dishes with images) */}
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Món ăn</h2>
+            {bowls.length > 0 ? (
+              <div className="space-y-4">
+                {bowls.map((bowl) => {
+                  const hasItems = bowl.items && bowl.items.length > 0;
+                  const templateImage = (bowl.template as any)?.imageUrl;
+                  
+                  return (
+                    <div key={bowl.id} className="bg-white rounded-xl shadow-lg overflow-hidden border-2 border-gray-200">
+                      {/* Bowl Header with Image */}
+                      <div className="p-4">
+                        <div className="flex items-start gap-4">
+                          {/* Bowl Image */}
+                          <div className="flex-shrink-0">
+                            {templateImage ? (
+                              <ImageWithFallback
+                                src={getFirebaseThumbnail(templateImage)}
+                                alt={bowl.name || "Bowl"}
+                                width={120}
+                                height={120}
+                                className="rounded-xl object-cover shadow-md"
+                                fallbackSrc="/icon.svg"
+                              />
+                            ) : (
+                              <div className="w-[120px] h-[120px] flex items-center justify-center rounded-xl bg-gradient-to-br from-gray-100 to-gray-200">
+                                <i className="bx bx-bowl-rice text-gray-400 text-5xl"></i>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Bowl Info */}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-xl font-bold text-gray-900 mb-1">{bowl.name}</h3>
+                            {bowl.instruction && (
+                              <p className="text-sm text-gray-600 mb-2">{bowl.instruction}</p>
+                            )}
+                            <p className="text-lg font-bold text-green-600">
+                              {formatVND(bowl.linePrice ?? 0)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Items List with Images - Always visible */}
+                      {hasItems && (
+                        <div className="border-t-2 border-gray-200 bg-gray-50 p-4">
+                          <h4 className="text-base font-bold text-gray-800 mb-3">Ingredients:</h4>
+                          <div className="space-y-3 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+                            {bowl.items?.map((item) => {
+                              const ingredient = item.ingredient;
+                              const standardQuantity = ingredient?.standardQuantity ?? 1;
+                              const pricePerUnit = standardQuantity > 0 
+                                ? (item.unitPrice ?? 0) / standardQuantity 
+                                : (item.unitPrice ?? 0);
+                              const itemSubtotal = standardQuantity > 0 
+                                ? ((item.quantity || 0) / standardQuantity) * (item.unitPrice ?? 0)
+                                : 0;
+                              
+                              return (
+                                <div key={item.id} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200 shadow-sm">
+                                  {/* Ingredient Image */}
+                                  <div className="flex-shrink-0">
+                                    {ingredient?.imageUrl ? (
+                                      <ImageWithFallback
+                                        src={getFirebaseThumbnail(ingredient.imageUrl)}
+                                        alt={ingredient.name || "Ingredient"}
+                                        width={64}
+                                        height={64}
+                                        className="rounded-lg object-cover"
+                                        fallbackSrc="/icon.svg"
+                                      />
+                                    ) : (
+                                      <div className="w-16 h-16 flex items-center justify-center rounded-lg bg-gray-100">
+                                        <i className="bx bx-food-menu text-gray-400 text-2xl"></i>
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Ingredient Info */}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-gray-900 mb-1">
+                                      {ingredient?.name || `Ingredient ${item.ingredientId}`}
+                                    </p>
+                                    <div className="flex items-center gap-2 text-xs text-gray-600">
+                                      <span>{item.quantity} {ingredient?.unit || 'g'}</span>
+                                      <span>×</span>
+                                      <span>{formatVND(pricePerUnit)}/{ingredient?.unit || 'g'}</span>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Item Subtotal */}
+                                  <div className="text-right flex-shrink-0">
+                                    <p className="text-sm font-bold text-green-600">
+                                      {formatVND(itemSubtotal)}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+            ) : (
+              <div className="bg-white rounded-xl shadow-md p-8 text-center">
+                <p className="text-gray-500">Chưa có món nào</p>
+              </div>
+            )}
+          </div>
 
+          {/* Right Column - Order Information & Total Price */}
+          <div className="space-y-6 pt-12">
             {/* Order Information */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Order Information</h2>
+            <div className="bg-white rounded-xl shadow-lg p-6 border-2 border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Order Information</h2>
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Order ID:</span>
-                  <span className="font-medium">{order.id}</span>
+                  <span className="font-medium text-sm break-all">{order.id}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Status:</span>
@@ -200,7 +284,7 @@ export default function OrderTrackingPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Created:</span>
-                  <span className="font-medium">
+                  <span className="font-medium text-sm">
                     {order.createdAt ? new Date(order.createdAt).toLocaleString() : 'N/A'}
                   </span>
                 </div>
@@ -219,42 +303,40 @@ export default function OrderTrackingPage() {
               </div>
             </div>
 
-            {/* Bowls */}
-            {bowls.length > 0 && (
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">Your Bowls</h2>
-                <div className="space-y-4">
-                  {bowls.map((bowl) => (
-                    <div key={bowl.id} className="border rounded-lg p-4">
-                      <h3 className="text-lg font-semibold text-gray-900">{bowl.name}</h3>
-                      {bowl.instruction && (
-                        <p className="text-sm text-gray-600 mt-1">Note: {bowl.instruction}</p>
-                      )}
-                      <p className="text-sm text-gray-600 mt-2">Price: {formatVND(bowl.linePrice ?? 0)}</p>
-                    </div>
-                  ))}
+            {/* Total Price */}
+            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-xl p-6 border-2 border-green-400">
+              <h2 className="text-xl font-bold text-white mb-4">Giá tiền tổng</h2>
+              <div className="space-y-3">
+                <div className="flex justify-between text-white/90">
+                  <span>Subtotal:</span>
+                  <span className="font-semibold">{formatVND(order.subtotalAmount ?? 0)}</span>
+                </div>
+                <div className="flex justify-between text-white/90">
+                  <span>Promotion:</span>
+                  <span className="font-semibold">-{formatVND(order.promotionTotal ?? 0)}</span>
+                </div>
+                <div className="flex justify-between text-2xl font-bold text-white border-t-2 border-white/30 pt-3 mt-3">
+                  <span>Total:</span>
+                  <span>{formatVND(order.totalAmount ?? 0)}</span>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* Right Column - Payment & Summary */}
-          <div className="space-y-6">
             {/* Payment Information */}
             {payments.length > 0 && (
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">Payment Information</h2>
-                <div className="space-y-4">
+              <div className="bg-white rounded-xl shadow-lg p-6 border-2 border-gray-200">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">Payment Information</h2>
+                <div className="space-y-3">
                   {payments.map((payment) => (
-                    <div key={payment.id} className="border rounded-lg p-4">
+                    <div key={payment.id} className="border rounded-lg p-3">
                       <div className="flex justify-between items-start">
                         <div>
-                          <p className="font-medium">Payment #{payment.id.slice(-8)}</p>
-                          <p className="text-sm text-gray-600">Method: {payment.method}</p>
-                          <p className="text-sm text-gray-600">Status: {payment.status}</p>
+                          <p className="font-medium text-sm">Payment #{payment.id.slice(-8)}</p>
+                          <p className="text-xs text-gray-600">Method: {payment.method}</p>
+                          <p className="text-xs text-gray-600">Status: {payment.status}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-bold text-green-600">{formatVND(payment.amount ?? 0)}</p>
+                          <p className="text-base font-bold text-green-600">{formatVND(payment.amount ?? 0)}</p>
                         </div>
                       </div>
                     </div>
@@ -263,59 +345,6 @@ export default function OrderTrackingPage() {
               </div>
             )}
 
-            {/* Order Summary */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Order Summary</h2>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Subtotal:</span>
-                  <span className="font-medium">{formatVND(order.subtotalAmount ?? 0)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Promotion:</span>
-                  <span className="font-medium text-green-600">-{formatVND(order.promotionTotal ?? 0)}</span>
-                </div>
-                <div className="flex justify-between text-lg font-bold border-t pt-3">
-                  <span>Total:</span>
-                  <span>{formatVND(order.totalAmount ?? 0)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Actions</h2>
-              <div className="space-y-3">
-                <button
-                  onClick={() => router.back()}
-                  className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Go Back
-                </button>
-                <button
-                  onClick={async () => {
-                    try {
-                      // Build a minimal reorder payload: templateId + ingredientIds
-                      const allItemsRes = await bowlService.getAllItems();
-                      const allItems = (allItemsRes.data || []);
-                      const ingredientIds: string[] = [];
-                      for (const b of bowls) {
-                        const items = allItems.filter((it: any) => it.bowlId === b.id);
-                        for (const it of items) ingredientIds.push(it.ingredientId);
-                      }
-                      const payload = { templateId: bowls[0]?.templateId || '', ingredientIds };
-                      if (typeof window !== 'undefined') {
-                        localStorage.setItem('reorderSelection', JSON.stringify(payload));
-                      }
-                    } catch {}
-                    router.push('/order');
-                  }}
-                  className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                >
-                  Order Again
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </div>

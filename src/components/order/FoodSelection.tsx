@@ -21,11 +21,10 @@ interface FoodSelectionProps {
   category: string;
   items: FoodItem[];
   onItemSelect: (category: string, item: FoodItem) => void;
-  onSkip: () => void;
   selectedIds?: string[];
 }
 
-export default function FoodSelection({ category, items, onItemSelect, onSkip, selectedIds = [] }: FoodSelectionProps) {
+export default function FoodSelection({ category, items, onItemSelect, selectedIds = [] }: FoodSelectionProps) {
   return (
     <div className="bg-white rounded-2xl p-6 shadow-lg">
       <div className="flex items-center justify-between mb-6">
@@ -86,16 +85,6 @@ export default function FoodSelection({ category, items, onItemSelect, onSkip, s
             </div>
           </button>
         ))}
-      </div>
-      
-      {/* Skip Option */}
-      <div className="mt-6 text-center">
-        <button 
-          onClick={onSkip}
-          className="px-6 py-2 text-gray-600 border border-gray-300 rounded-lg hover:border-green-300 hover:text-green-600 transition-all duration-300"
-        >
-          Skip {category} →
-        </button>
       </div>
     </div>
   );

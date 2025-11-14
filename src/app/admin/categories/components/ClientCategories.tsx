@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import ImageWithFallback from "@/components/shared/ImageWithFallback";
 import Pagination from '@/components/admin/Pagination';
 import dynamic from "next/dynamic";

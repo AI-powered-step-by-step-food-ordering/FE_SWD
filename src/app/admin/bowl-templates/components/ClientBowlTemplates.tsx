@@ -1030,8 +1030,8 @@ export default function ClientBowlTemplates({
                           )}
                           {(stepForm.defaultIngredients || []).length === 0 && (
                             <div className="text-center text-sm text-gray-400">
-                              No default ingredients added yet. Click "Add
-                              Ingredient" to start.
+                              No default ingredients added yet. Click &quot;Add
+                              Ingredient&quot; to start.
                             </div>
                           )}
                         </div>

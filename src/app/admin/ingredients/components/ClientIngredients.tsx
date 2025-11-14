@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { Ingredient, Category } from '@/types/api.types';
 import ingredientService from '@/services/ingredient.service';
 import categoryService from '@/services/category.service';
@@ -35,11 +35,15 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
 
+  // Load ingredients when dependencies change
+  useEffect(() => {
+    loadIngredients();
+  }, [showInactive, page, pageSize, sortField, sortDirection]);
+
   // Load ingredients with backend pagination (fully server-side)
   const loadIngredients = async () => {
     setLoading(true);
     try {
-
       // Use server-side active/inactive endpoints with pagination
       const response = showInactive 
         ? await ingredientService.getInactive({
@@ -75,11 +79,6 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
       setLoading(false);
     }
   };
-
-  // Load ingredients when dependencies change
-  useEffect(() => {
-    loadIngredients();
-  }, [showInactive, page, pageSize, sortField, sortDirection]);
 
   // Ensure categories are loaded and normalized
   useEffect(() => {

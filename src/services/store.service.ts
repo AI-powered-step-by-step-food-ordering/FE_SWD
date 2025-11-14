@@ -126,6 +126,21 @@ class StoreService {
     );
     return response.data;
   }
+
+  /**
+   * Get all stores (legacy method - returns all stores without pagination for client-side filtering)
+   */
+  async getAllLegacy(): Promise<ApiResponse<Store[]>> {
+    const response = await apiClient.get<ApiResponse<any>>('/api/stores/getall');
+    const res = response.data as ApiResponse<any>;
+    let content: any[] = [];
+    if (Array.isArray(res.data)) {
+      content = res.data;
+    } else if (res?.data?.content && Array.isArray(res.data.content)) {
+      content = res.data.content;
+    }
+    return { ...res, data: content as Store[] } as ApiResponse<Store[]>;
+  }
 }
 
 const storeService = new StoreService();

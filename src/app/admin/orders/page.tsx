@@ -17,6 +17,8 @@ import { formatVND } from "@/lib/format-number";
 import { useRequireAdmin } from "@/hooks/useRequireAdmin";
 import AdminSearchBar from "@/components/admin/AdminSearchBar";
 import Pagination from "@/components/admin/Pagination";
+import ImageWithFallback from "@/components/shared/ImageWithFallback";
+import { getFirebaseThumbnail } from "@/lib/firebase-storage";
 
 export default function OrdersPage() {
   useRequireAdmin();
@@ -98,18 +100,32 @@ export default function OrdersPage() {
   const loadOrderDetails = async (order: Order) => {
     try {
       setOrderDetailsLoading(true);
-      setSelectedOrder(order);
       setShowOrderModal(true);
 
-      // Use bowls data already included in the order response
-      const orderBowls = (order as any).bowls || [];
-      setOrderBowls(orderBowls);
+      // Fetch full order details with store and template information
+      const orderResponse = await orderService.getById(order.id, ['store', 'template']);
+      if (orderResponse.success && orderResponse.data) {
+        setSelectedOrder(orderResponse.data);
+        
+        // Use bowls data from the order response
+        const orderBowls = (orderResponse.data as any).bowls || [];
+        setOrderBowls(orderBowls);
 
-      // Extract bowl items from the bowls data (if items are included)
-      const orderBowlItems = orderBowls.flatMap(
-        (bowl: any) => bowl.items || [],
-      );
-      setBowlItems(orderBowlItems);
+        // Extract bowl items from the bowls data (if items are included)
+        const orderBowlItems = orderBowls.flatMap(
+          (bowl: any) => bowl.items || [],
+        );
+        setBowlItems(orderBowlItems);
+      } else {
+        // Fallback to using the order passed in
+        setSelectedOrder(order);
+        const orderBowls = (order as any).bowls || [];
+        setOrderBowls(orderBowls);
+        const orderBowlItems = orderBowls.flatMap(
+          (bowl: any) => bowl.items || [],
+        );
+        setBowlItems(orderBowlItems);
+      }
 
       // Load payment transactions for this order
       const paymentsResponse = await paymentService.getByOrderId(order.id);
@@ -117,6 +133,10 @@ export default function OrdersPage() {
     } catch (error) {
       console.error("Error loading order details:", error);
       toast.error("Failed to load order details");
+      // Fallback to using the order passed in
+      setSelectedOrder(order);
+      const orderBowls = (order as any).bowls || [];
+      setOrderBowls(orderBowls);
     } finally {
       setOrderDetailsLoading(false);
     }
@@ -285,7 +305,7 @@ export default function OrdersPage() {
                     Customer Name
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Store ID
+                    Store
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                     Status
@@ -337,8 +357,31 @@ export default function OrdersPage() {
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          {order.storeId || "N/A"}
+                        <div className="flex items-center gap-3">
+                          {order.store?.imageUrl ? (
+                            <ImageWithFallback
+                              src={getFirebaseThumbnail(order.store.imageUrl)}
+                              alt={order.store.name || "Store"}
+                              width={40}
+                              height={40}
+                              className="rounded-lg object-cover"
+                              fallbackSrc="/icon.svg"
+                            />
+                          ) : (
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-200">
+                              <i className="bx bx-store text-gray-400 text-xl"></i>
+                            </div>
+                          )}
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {order.store?.name || order.storeId || "N/A"}
+                            </div>
+                            {order.store?.address && (
+                              <div className="text-xs text-gray-500">
+                                {order.store.address}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
@@ -471,10 +514,38 @@ export default function OrdersPage() {
                       </p>
                     </div>
                     <div>
-                      <span className="text-sm text-gray-600">Store ID:</span>
-                      <p className="font-mono text-sm">
-                        {selectedOrder.storeId}
-                      </p>
+                      <span className="text-sm text-gray-600">Store:</span>
+                      <div className="mt-1 flex items-center gap-2">
+                        {selectedOrder.store?.imageUrl ? (
+                          <ImageWithFallback
+                            src={getFirebaseThumbnail(selectedOrder.store.imageUrl)}
+                            alt={selectedOrder.store.name || "Store"}
+                            width={48}
+                            height={48}
+                            className="rounded-lg object-cover"
+                            fallbackSrc="/icon.svg"
+                          />
+                        ) : (
+                          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-200">
+                            <i className="bx bx-store text-gray-400 text-2xl"></i>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-sm font-medium">
+                            {selectedOrder.store?.name || selectedOrder.storeId || "N/A"}
+                          </p>
+                          {selectedOrder.store?.address && (
+                            <p className="text-xs text-gray-500">
+                              {selectedOrder.store.address}
+                            </p>
+                          )}
+                          {selectedOrder.store?.phone && (
+                            <p className="text-xs text-gray-500">
+                              {selectedOrder.store.phone}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     <div>
                       <span className="text-sm text-gray-600">Status:</span>
@@ -555,11 +626,32 @@ export default function OrdersPage() {
                           className="rounded border bg-white p-4"
                         >
                           <div className="mb-2 flex items-start justify-between">
-                            <div>
-                              <h4 className="font-semibold">{bowl.name}</h4>
-                              <p className="font-mono text-sm text-gray-600">
-                                Bowl ID: {bowl.id}
-                              </p>
+                            <div className="flex items-start gap-3 flex-1">
+                              {(bowl as any).template?.imageUrl ? (
+                                <ImageWithFallback
+                                  src={getFirebaseThumbnail((bowl as any).template.imageUrl)}
+                                  alt={bowl.name || "Bowl"}
+                                  width={80}
+                                  height={80}
+                                  className="rounded-lg object-cover flex-shrink-0"
+                                  fallbackSrc="/icon.svg"
+                                />
+                              ) : (
+                                <div className="flex h-20 w-20 items-center justify-center rounded-lg bg-gray-200 flex-shrink-0">
+                                  <i className="bx bx-bowl-rice text-gray-400 text-3xl"></i>
+                                </div>
+                              )}
+                              <div className="flex-1">
+                                <h4 className="font-semibold">{bowl.name}</h4>
+                                <p className="font-mono text-sm text-gray-600">
+                                  Bowl ID: {bowl.id}
+                                </p>
+                                {(bowl as any).template?.name && (
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Template: {(bowl as any).template.name}
+                                  </p>
+                                )}
+                              </div>
                             </div>
                             <div className="text-right">
                               <p className="font-semibold">

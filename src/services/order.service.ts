@@ -5,13 +5,30 @@ class OrderService {
   /**
    * Get all orders
    */
-  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Order>>> {
+  async getAll(params?: { 
+    page?: number; 
+    size?: number; 
+    sortBy?: string; 
+    sortDir?: 'asc' | 'desc';
+    include?: string[]; // e.g., ['store', 'template']
+  }): Promise<ApiResponse<PagedResponse<Order>>> {
     const searchParams = new URLSearchParams();
     
     if (params?.page !== undefined) searchParams.append('page', params.page.toString());
     if (params?.size !== undefined) searchParams.append('size', params.size.toString());
     if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
     if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+    
+    // Add include parameters for store and template
+    if (params?.include && params.include.length > 0) {
+      params.include.forEach(inc => {
+        searchParams.append('include', inc);
+      });
+    } else {
+      // Default: include store and template if not specified
+      searchParams.append('include', 'store');
+      searchParams.append('include', 'template');
+    }
     
     const response = await apiClient.get<ApiResponse<PagedResponse<Order>>>(`/api/orders/getall?${searchParams.toString()}`);
     return response.data;
@@ -28,7 +45,8 @@ class OrderService {
     page?: number; 
     size?: number; 
     sortBy?: string; 
-    sortDir?: 'asc' | 'desc' 
+    sortDir?: 'asc' | 'desc';
+    include?: string[]; // e.g., ['store', 'template']
   }): Promise<ApiResponse<PagedResponse<Order>>> {
     const searchParams = new URLSearchParams();
 
@@ -41,6 +59,17 @@ class OrderService {
     if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
     if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
 
+    // Add include parameters for store and template
+    if (params?.include && params.include.length > 0) {
+      params.include.forEach(inc => {
+        searchParams.append('include', inc);
+      });
+    } else {
+      // Default: include store and template if not specified
+      searchParams.append('include', 'store');
+      searchParams.append('include', 'template');
+    }
+
     const response = await apiClient.get<ApiResponse<PagedResponse<Order>>>(`/api/orders/search?${searchParams.toString()}`);
     return response.data;
   }
@@ -48,16 +77,47 @@ class OrderService {
   /**
    * Get order history by user ID
    */
-  async getOrderHistory(userId: string, params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Order>>> {
-    const response = await apiClient.get<ApiResponse<PagedResponse<Order>>>(`/api/orders/order-history/${userId}` , { params });
+  async getOrderHistory(userId: string, params?: { 
+    page?: number; 
+    size?: number; 
+    sortBy?: string; 
+    sortDir?: 'asc' | 'desc';
+    include?: string[]; // e.g., ['store', 'template']
+  }): Promise<ApiResponse<PagedResponse<Order>>> {
+    const queryParams: any = { ...params };
+    
+    // Add include parameters for store and template
+    if (queryParams.include && queryParams.include.length > 0) {
+      // include is already in params
+    } else {
+      // Default: include store and template if not specified
+      queryParams.include = ['store', 'template'];
+    }
+    
+    const response = await apiClient.get<ApiResponse<PagedResponse<Order>>>(`/api/orders/order-history/${userId}`, { 
+      params: queryParams 
+    });
     return response.data;
   }
 
   /**
    * Get order by ID
    */
-  async getById(id: string): Promise<ApiResponse<Order>> {
-    const response = await apiClient.get<ApiResponse<Order>>(`/api/orders/getbyid/${id}`);
+  async getById(id: string, include?: string[]): Promise<ApiResponse<Order>> {
+    const searchParams = new URLSearchParams();
+    
+    // Add include parameters for store and template
+    if (include && include.length > 0) {
+      include.forEach(inc => {
+        searchParams.append('include', inc);
+      });
+    } else {
+      // Default: include store and template if not specified
+      searchParams.append('include', 'store');
+      searchParams.append('include', 'template');
+    }
+    
+    const response = await apiClient.get<ApiResponse<Order>>(`/api/orders/getbyid/${id}?${searchParams.toString()}`);
     return response.data;
   }
 

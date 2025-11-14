@@ -318,6 +318,26 @@ class CategoryService {
     }
     return [];
   }
+
+  /**
+   * Get all categories (legacy method - returns all categories without pagination for client-side filtering)
+   */
+  async getAllLegacy(): Promise<ApiResponse<Category[]>> {
+    const response = await apiClient.get<ApiResponse<any>>('/api/categories/getall');
+    const res = response.data as ApiResponse<any>;
+    let content: any[] = [];
+    if (Array.isArray(res.data)) {
+      content = res.data;
+    } else if (res?.data?.content && Array.isArray(res.data.content)) {
+      content = res.data.content;
+    }
+    // Normalize active flag
+    content = content.map((cat: any) => ({
+      ...cat,
+      isActive: typeof cat.isActive === 'boolean' ? cat.isActive : !!cat.active,
+    }));
+    return { ...res, data: content as Category[] } as ApiResponse<Category[]>;
+  }
 }
 
 const categoryService = new CategoryService();

@@ -217,6 +217,7 @@ export interface Store {
   name: string;
   address: string;
   phone: string;
+  imageUrl?: string;
   active?: boolean; // Backend uses 'active' field
 }
 
@@ -243,6 +244,7 @@ export interface Order {
   // New enriched fields from backend admin response
   userFullName?: string;
   user?: User;
+  store?: Store;
   bowls?: Bowl[];
 }
 

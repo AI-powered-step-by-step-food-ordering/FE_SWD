@@ -19,12 +19,6 @@ export default function CheckoutPage() {
 
   const [promoCode, setPromoCode] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('ZALOPAY');
-  const [cardDetails, setCardDetails] = useState({
-    cardNumber: '',
-    expiryDate: '',
-    cvv: '',
-    cardholderName: ''
-  });
 
   const loadOrderData = useCallback(async () => {
     try {
@@ -99,6 +93,16 @@ export default function CheckoutPage() {
               orderId,
             });
 
+            // Store transaction info in localStorage for redirect handling
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('zalopay_pending_payment', JSON.stringify({
+                appTransId: zaloRes.data.appTransId,
+                paymentTransactionId: zaloRes.data.paymentTransactionId,
+                orderId: orderId,
+                timestamp: Date.now(),
+              }));
+            }
+
             // Redirect to ZaloPay payment page
             window.location.href = zaloRes.data.orderUrl;
             return; // Stop further local processing; user will come back via redirect
@@ -172,15 +176,8 @@ export default function CheckoutPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    if (name.startsWith('card')) {
-      setCardDetails(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    } else {
-      if (name === 'paymentMethod') {
-        setPaymentMethod(value);
-      }
+    if (name === 'paymentMethod') {
+      setPaymentMethod(value);
     }
   };
 
@@ -278,72 +275,10 @@ export default function CheckoutPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
               >
                 <option value="ZALOPAY">ZaloPay</option>
-                <option value="CASH">Cash</option>
-                <option value="CREDIT_CARD">Credit Card</option>
+                <option value="CASH">Tiền mặt (CASH)</option>
               </select>
             </div>
 
-            {/* Card Details */}
-            {paymentMethod === 'CREDIT_CARD' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Card Number
-                  </label>
-                  <input
-                    type="text"
-                    name="cardNumber"
-                    value={cardDetails.cardNumber}
-                    onChange={handleInputChange}
-                    placeholder="1234 5678 9012 3456"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Expiry Date
-                    </label>
-                    <input
-                      type="text"
-                      name="expiryDate"
-                      value={cardDetails.expiryDate}
-                      onChange={handleInputChange}
-                      placeholder="MM/YY"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      CVV
-                    </label>
-                    <input
-                      type="text"
-                      name="cvv"
-                      value={cardDetails.cvv}
-                      onChange={handleInputChange}
-                      placeholder="123"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Cardholder Name
-                  </label>
-                  <input
-                    type="text"
-                    name="cardholderName"
-                    value={cardDetails.cardholderName}
-                    onChange={handleInputChange}
-                    placeholder="John Doe"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-            )}
 
             {/* Payment Button */}
             <button

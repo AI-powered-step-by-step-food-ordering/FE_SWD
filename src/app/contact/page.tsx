@@ -1,8 +1,134 @@
 'use client';
 
+import { useState, FormEvent } from 'react';
+import emailjs from '@emailjs/browser';
+import { toast } from 'react-toastify';
 import Header from '@/components/shared/Header';
 
 export default function ContactPage() {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    subject: '',
+    message: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    
+    // Validation
+    if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) {
+      toast.error('Vui lòng điền đầy đủ thông tin');
+      return;
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      toast.error('Email không hợp lệ');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // EmailJS configuration
+      const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || 'service_1sqr7w5';
+      const templateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID || 'template_tuv6euw';
+      const autoReplyTemplateId = process.env.NEXT_PUBLIC_EMAILJS_AUTO_REPLY_TEMPLATE_ID || 'template_auto_reply';
+      const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY || 'tmrjBpRZd8Op2ncWU';
+
+      if (!serviceId || !templateId || !publicKey) {
+        toast.error('Email service chưa được cấu hình. Vui lòng liên hệ admin.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Format time
+      const now = new Date();
+      const formattedTime = now.toLocaleString('vi-VN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      const subject = formData.subject || 'Contact Form - Healthy Bowl';
+
+      // Template parameters cho email gửi đến admin
+      const adminTemplateParams = {
+        name: formData.name, // {{name}} trong template
+        time: formattedTime, // {{time}} trong template
+        message: formData.message, // {{message}} trong template
+        from_email: formData.email, // Để EmailJS có thể reply
+        reply_to: formData.email, // Để có thể reply trực tiếp
+        subject: subject, // Email subject
+      };
+
+      // Template parameters cho email tự động trả lời người dùng
+      const autoReplyParams = {
+        name: formData.name, // {{name}} trong template auto-reply
+        time: formattedTime, // {{time}} trong template auto-reply
+        subject: subject, // {{subject}} trong template auto-reply
+        to_email: formData.email, // Email người nhận (người dùng)
+      };
+
+      console.log('Sending admin email with params:', { serviceId, templateId, templateParams: adminTemplateParams });
+
+      // Gửi email đến admin
+      const adminResult = await emailjs.send(serviceId, templateId, adminTemplateParams, publicKey);
+
+      console.log('Admin EmailJS Result:', adminResult);
+
+      // Gửi email tự động trả lời cho người dùng (nếu có template)
+      if (autoReplyTemplateId && autoReplyTemplateId !== 'template_auto_reply') {
+        try {
+          console.log('Sending auto-reply email with params:', { serviceId, templateId: autoReplyTemplateId, templateParams: autoReplyParams });
+          const autoReplyResult = await emailjs.send(serviceId, autoReplyTemplateId, autoReplyParams, publicKey);
+          console.log('Auto-reply EmailJS Result:', autoReplyResult);
+        } catch (autoReplyError: any) {
+          // Nếu auto-reply thất bại, chỉ log lỗi nhưng không ảnh hưởng đến kết quả chính
+          console.warn('Auto-reply email failed (non-critical):', autoReplyError);
+        }
+      }
+
+      if (adminResult.status === 200 || adminResult.text === 'OK') {
+        toast.success('Cảm ơn bạn đã liên hệ! Chúng tôi sẽ phản hồi sớm nhất có thể.');
+        // Reset form
+        setFormData({ name: '', email: '', subject: '', message: '' });
+      } else {
+        throw new Error(`EmailJS returned status: ${adminResult.status}`);
+      }
+    } catch (error: any) {
+      console.error('EmailJS Error:', error);
+      console.error('Error details:', {
+        status: error?.status,
+        text: error?.text,
+        message: error?.message,
+        response: error?.response
+      });
+      
+      // Hiển thị lỗi chi tiết hơn
+      let errorMessage = 'Có lỗi xảy ra khi gửi email. Vui lòng thử lại sau.';
+      
+      if (error?.status === 400) {
+        errorMessage = 'Lỗi 400: Template parameters không khớp. Vui lòng kiểm tra template trong EmailJS dashboard.';
+      } else if (error?.text) {
+        errorMessage = `Lỗi: ${error.text}`;
+      } else if (error?.message) {
+        errorMessage = `Lỗi: ${error.message}`;
+      } else if (error?.status) {
+        errorMessage = `Lỗi ${error.status}: ${error.text || 'Bad Request'}`;
+      }
+      
+      toast.error(errorMessage);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-50 via-white to-green-50">
       <Header />
@@ -42,21 +168,67 @@ export default function ContactPage() {
 
         {/* Form + Map placeholder */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <form onSubmit={(e)=>e.preventDefault()} className="p-6 bg-white rounded-2xl border border-green-100 shadow-sm space-y-4">
+          <form onSubmit={handleSubmit} className="p-6 bg-white rounded-2xl border border-green-100 shadow-sm space-y-4">
             <h2 className="text-lg font-semibold text-gray-900">Send us a message</h2>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Your name</label>
-              <input className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-emerald-200" placeholder="John Doe" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Your name <span className="text-red-500">*</span></label>
+              <input 
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" 
+                placeholder="John Doe"
+                required
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input type="email" className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-emerald-200" placeholder="you@example.com" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
+              <input 
+                type="email" 
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" 
+                placeholder="you@example.com"
+                required
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
-              <textarea className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-emerald-200" rows={5} placeholder="How can we help?" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+              <input 
+                type="text"
+                value={formData.subject}
+                onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" 
+                placeholder="What is this about?"
+              />
             </div>
-            <button className="px-5 py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700">Send</button>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Message <span className="text-red-500">*</span></label>
+              <textarea 
+                value={formData.message}
+                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all resize-none" 
+                rows={5} 
+                placeholder="How can we help?"
+                required
+              />
+            </div>
+            <button 
+              type="submit"
+              disabled={isSubmitting}
+              className={`w-full px-5 py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition-all shadow-md hover:shadow-lg ${
+                isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              {isSubmitting ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></span>
+                  Đang gửi...
+                </span>
+              ) : (
+                'Send Message'
+              )}
+            </button>
           </form>
           <div className="p-6 bg-white rounded-2xl border border-green-100 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Our location</h2>

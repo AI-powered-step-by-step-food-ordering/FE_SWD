@@ -34,18 +34,27 @@ export default function AdminDashboard() {
   const loadStats = async () => {
     try {
       // Use service endpoints aligned with backend; read totalElements for paginated resources
-      const [usersRes, ordersRes, ingredientsRes, promotionsRes] = await Promise.all([
+      const [usersRes, ordersRes, ingredientsRes, promotionsRes] = await Promise.allSettled([
         userService.getAll({ page: 0, size: 1 }),
-        orderService.getAll({ page: 0, size: 1 }),
+        orderService.getAll({ page: 0, size: 10 }).catch(err => {
+          console.error('Failed to load orders for stats:', err);
+          return { success: false, data: { totalElements: 0 } } as any;
+        }),
         ingredientService.getAll({ page: 0, size: 1 }),
         promotionService.getAll(),
       ]);
 
+      // Extract values from settled promises
+      const usersData = usersRes.status === 'fulfilled' ? usersRes.value : null;
+      const ordersData = ordersRes.status === 'fulfilled' ? ordersRes.value : null;
+      const ingredientsData = ingredientsRes.status === 'fulfilled' ? ingredientsRes.value : null;
+      const promotionsData = promotionsRes.status === 'fulfilled' ? promotionsRes.value : null;
+
       setStats({
-        totalUsers: usersRes?.data?.totalElements ?? 0,
-        totalOrders: ordersRes?.data?.totalElements ?? 0,
-        totalIngredients: ingredientsRes?.data?.totalElements ?? 0,
-        totalPromotions: Array.isArray(promotionsRes?.data) ? promotionsRes.data.length : 0,
+        totalUsers: usersData?.data?.totalElements ?? 0,
+        totalOrders: ordersData?.data?.totalElements ?? 0,
+        totalIngredients: ingredientsData?.data?.totalElements ?? 0,
+        totalPromotions: Array.isArray(promotionsData?.data) ? promotionsData.data.length : 0,
       });
     } catch (error) {
       console.error('Failed to load stats:', error);
