@@ -9,7 +9,6 @@ import { getFirebaseThumbnail } from '@/lib/firebase-storage';
 import type { Store, StoreRequest } from '@/types/api.types';
 import { toast } from 'react-toastify';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
-import AdminSearchBar from '@/components/admin/AdminSearchBar';
 import Pagination from '@/components/admin/Pagination';
 
 const FirebaseImageUpload = dynamic(() => import('@/components/shared/FirebaseImageUpload'), {
@@ -18,80 +17,53 @@ const FirebaseImageUpload = dynamic(() => import('@/components/shared/FirebaseIm
 
 export default function StoresPage() {
   useRequireAdmin();
-  type UiStore = Store & { isActive?: boolean; openingHours?: string; imageUrl?: string };
-  type StoreForm = StoreRequest & { isActive: boolean; openingHours?: string; imageUrl?: string };
+  type UiStore = Store & { active?: boolean; openingHours?: string; imageUrl?: string };
+  type StoreForm = StoreRequest & { active: boolean; openingHours?: string; imageUrl?: string };
   const [stores, setStores] = useState<UiStore[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingStore, setEditingStore] = useState<UiStore | null>(null);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(12);
-  const [search, setSearch] = useState('');
+  const [pageSize, setPageSize] = useState(10);
   const [sortField, setSortField] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [useLegacy, setUseLegacy] = useState(false);
   const [formData, setFormData] = useState<StoreForm>({
     name: '',
     address: '',
     phone: '',
-    isActive: true,
+    active: true,
     openingHours: '',
     imageUrl: '',
   });
 
-  const loadStores = useCallback(async () => {
+  useEffect(() => {
+    loadStores();
+  }, [page, pageSize, sortField, sortDirection]);
+
+  const loadStores = async () => {
     try {
       setLoading(true);
-      const q = search.trim().toLowerCase();
-
-      // If searching, switch to legacy mode for client-side filtering
-      if (q && !useLegacy) {
-        setUseLegacy(true);
-        setLoading(false);
-        return;
-      }
-      if (!q && useLegacy) {
-        setUseLegacy(false);
-      }
       
-      if (useLegacy && q) {
-        const legacy = await storeService.getAllLegacy();
-        if (legacy.success && legacy.data) {
-          let list = legacy.data;
-          // basic search across common fields
-          list = list.filter((s) => (
-            (s.name?.toLowerCase().includes(q)) ||
-            (s.address?.toLowerCase().includes(q)) ||
-            (s.phone?.toLowerCase().includes(q))
-          ));
-          const total = list.length;
-          const startIndex = Math.max(0, (page - 1) * Math.max(1, pageSize));
-          const paged = list.slice(startIndex, startIndex + pageSize);
-          setStores(paged);
-          setTotalElements(total);
-          setTotalPages(Math.max(1, Math.ceil(total / Math.max(1, pageSize))));
-        } else {
-          setStores([]);
-          setTotalElements(0);
-          setTotalPages(0);
-        }
+      // Use the getAll endpoint with pagination and sorting
+      const response = await storeService.getAll({
+        page: page - 1, // Backend uses 0-based indexing
+        size: pageSize,
+        sortBy: sortField,
+        sortDir: sortDirection,
+      });
+      
+      if (response.success && response.data) {
+        const data = response.data as any;
+        const storesList = data.content || [];
+        setStores(storesList);
+        setTotalElements(data.totalElements || storesList.length);
+        setTotalPages(data.totalPages || 1);
       } else {
-        const response = await storeService.getAll({
-          page: page - 1, // Backend uses 0-based indexing
-          size: pageSize,
-          sortBy: sortField || 'name',
-          sortDir: sortDirection,
-        });
-        
-        if (response.success && response.data) {
-          // Service always returns PagedResponse
-          const pagedData = response.data;
-          setStores((pagedData.content || []) as UiStore[]);
-          setTotalElements(pagedData.totalElements || 0);
-          setTotalPages(pagedData.totalPages || 1);
-        }
+        setStores([]);
+        setTotalElements(0);
+        setTotalPages(0);
       }
     } catch (error) {
       console.error('Failed to load stores:', error);
@@ -99,16 +71,6 @@ export default function StoresPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, search, sortField, sortDirection, useLegacy]);
-
-  useEffect(() => {
-    loadStores();
-  }, [loadStores]);
-
-  // Handle search
-  const handleSearch = (searchTerm: string) => {
-    setSearch(searchTerm);
-    setPage(1); // Reset to first page when searching
   };
 
   // Handle sorting
@@ -165,7 +127,7 @@ export default function StoresPage() {
       name: store.name,
       address: store.address,
       phone: store.phone,
-      isActive: store.isActive ?? true,
+      active: store.active ?? true,
       openingHours: store.openingHours || '',
       imageUrl: store.imageUrl || '',
     });
@@ -178,7 +140,7 @@ export default function StoresPage() {
       name: '',
       address: '',
       phone: '',
-      isActive: true,
+      active: true,
       openingHours: '',
       imageUrl: '',
     });
@@ -211,10 +173,9 @@ export default function StoresPage() {
               <option value="name-desc">Name (Z-A)</option>
               <option value="address-asc">Address (A-Z)</option>
               <option value="address-desc">Address (Z-A)</option>
-              <option value="isActive-desc">Active First</option>
-              <option value="isActive-asc">Inactive First</option>
+              <option value="active-desc">Active First</option>
+              <option value="active-asc">Inactive First</option>
             </select>
-            <AdminSearchBar value={search} onChange={handleSearch} placeholder="Tìm cửa hàng..." />
           <button
             onClick={() => {
               resetForm();
@@ -262,9 +223,9 @@ export default function StoresPage() {
                     <div className="flex items-center gap-2 mb-2">
                       <h3 className="text-lg font-semibold text-gray-900">{store.name}</h3>
                       <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
-                        store.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        store.active === true ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                       }`}>
-                        {store.isActive ? 'Active' : 'Inactive'}
+                        {store.active === true ? 'Active' : 'Inactive'}
                       </span>
                     </div>
                   </div>
@@ -396,12 +357,12 @@ export default function StoresPage() {
                     <div className="flex items-center">
                       <input
                         type="checkbox"
-                        id="isActive"
-                        checked={formData.isActive}
-                        onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                        id="active"
+                        checked={formData.active}
+                        onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
                         className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
                       />
-                      <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
+                      <label htmlFor="active" className="ml-2 block text-sm text-gray-900">
                         Active
                       </label>
                     </div>

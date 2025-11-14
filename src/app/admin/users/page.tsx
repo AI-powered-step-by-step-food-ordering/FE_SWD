@@ -6,7 +6,6 @@ import userService from '@/services/user.service';
 import type { User, UserCreateRequest, UserUpdateRequest } from '@/types/api.types';
 import { toast } from 'react-toastify';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
-import AdminSearchBar from '@/components/admin/AdminSearchBar';
 import Pagination from '@/components/admin/Pagination';
 
 export default function UsersPage() {
@@ -16,14 +15,12 @@ export default function UsersPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showInactive, setShowInactive] = useState(false);
-  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [sortField, setSortField] = useState('fullName');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [useLegacy, setUseLegacy] = useState(false);
   const [formData, setFormData] = useState<UserCreateRequest>({
     fullName: '',
     email: '',
@@ -33,62 +30,17 @@ export default function UsersPage() {
     role: 'USER',
   });
 
-  const loadUsers = useCallback(async () => {
+  useEffect(() => {
+    loadUsers();
+  }, [showInactive, page, pageSize, sortField, sortDirection]);
+
+  const loadUsers = async () => {
     try {
       setLoading(true);
 
-      const hasSearch = search.trim().length > 0;
       const sortParam = `${sortField},${sortDirection}`;
 
-      // When searching, switch to legacy fetch and filter client-side
-      if (hasSearch) {
-        setUseLegacy(true);
-        const response = await userService.getAllLegacy();
-        const allUsers = response.data || [];
-
-        const q = search.trim().toLowerCase();
-        const matchesQuery = (u: any) => {
-          const fields = [
-            u.fullName,
-            u.email,
-            u.phone,
-            u.role,
-            u.status,
-            u.goalCode,
-          ];
-          return fields.some((f) => String(f ?? '').toLowerCase().includes(q));
-        };
-
-        // Apply inactive/active filter similar to server endpoints
-        const filteredByStatus = showInactive
-          ? allUsers.filter((u: any) => u.status && u.status !== 'ACTIVE')
-          : allUsers.filter((u: any) => u.status === 'ACTIVE');
-
-        const filtered = filteredByStatus.filter(matchesQuery);
-
-        // Client-side sort
-        const [field, direction] = sortParam.split(',');
-        const sorted = [...filtered].sort((a: any, b: any) => {
-          const av = a[field as keyof typeof a];
-          const bv = b[field as keyof typeof b];
-          const aVal = av === undefined || av === null ? '' : String(av).toLowerCase();
-          const bVal = bv === undefined || bv === null ? '' : String(bv).toLowerCase();
-          if (aVal < bVal) return direction === 'asc' ? -1 : 1;
-          if (aVal > bVal) return direction === 'asc' ? 1 : -1;
-          return 0;
-        });
-
-        // Client-side paginate
-        const startIndex = (page - 1) * pageSize;
-        const paged = sorted.slice(startIndex, startIndex + pageSize);
-        setUsers(paged);
-        setTotalElements(sorted.length);
-        setTotalPages(Math.ceil(sorted.length / pageSize));
-        return;
-      }
-
-      // Not searching: use paginated endpoints; do not pass server-side search
-      setUseLegacy(false);
+      // Use server-side active/inactive endpoints with pagination
       if (showInactive) {
         const response = await userService.getInactive({
           page: page - 1,
@@ -99,7 +51,7 @@ export default function UsersPage() {
         setTotalElements(response.data.totalElements || 0);
         setTotalPages(response.data.totalPages || 0);
       } else {
-        const response = await userService.getAll({
+        const response = await userService.getActive({
           page: page - 1,
           size: pageSize,
           sort: sortParam,
@@ -114,15 +66,6 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [showInactive, page, pageSize, search, sortField, sortDirection]);
-
-  useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
-
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    setPage(1); // Reset to first page when searching
   };
 
   const handleSort = (field: string, direction?: 'asc' | 'desc') => {
@@ -175,15 +118,15 @@ export default function UsersPage() {
   };
 
   const handleSoftDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to soft delete this user?')) return;
+    if (!confirm('Are you sure you want to delete this user?')) return;
     
     try {
       await userService.softDelete(id);
-      toast.success('User soft deleted successfully');
+      toast.success('User deleted successfully');
       loadUsers(); // Reload data to maintain pagination
     } catch (error) {
-      console.error('Failed to soft delete user:', error);
-      toast.error('Failed to soft delete user');
+      console.error('Failed to delete user:', error);
+      toast.error('Failed to delete user');
     }
   };
 
@@ -249,8 +192,6 @@ export default function UsersPage() {
             <p className="text-sm text-gray-600 mt-1">Manage all users in the system</p>
           </div>
           <div className="flex items-center gap-4">
-            <AdminSearchBar value={search} onChange={handleSearch} placeholder="Tìm người dùng..." />
-            
             {/* Sort Dropdown */}
             <select
               value={`${sortField},${sortDirection}`}
@@ -396,7 +337,7 @@ export default function UsersPage() {
                               onClick={() => handleSoftDelete(user.id)}
                               className="text-orange-600 hover:text-orange-900"
                             >
-                              Soft Delete
+                              Delete
                             </button>
                           </>
                         )}

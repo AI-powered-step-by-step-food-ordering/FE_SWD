@@ -232,29 +232,32 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     const { bowlId, stepSelections } = get();
     const step = templateSteps[currentStepIndex];
     
-    // Try to get ingredient from cached stepIngredients first
-    let ingredient: Ingredient | undefined = stepIngredients.find(ing => ing.id === ingredientId);
-    let unitPrice = ingredient?.unitPrice || 0;
-    
-    // If not found in cache, try API call with error handling
-    if (!ingredient) {
-      try {
-        const ingRes = await ingredientService.getById(ingredientId);
-        if (ingRes?.success && ingRes?.data) {
-          // Map the API response to match our Ingredient type
-          const apiIngredient = ingRes.data;
-          unitPrice = apiIngredient.unitPrice || 0;
-        }
-      } catch (error) {
-        // If API call fails, log but continue with default price
-        console.warn(`Failed to fetch ingredient ${ingredientId} from API, using default price:`, error);
-        unitPrice = 0;
-      }
+    // 检查是否已经选择了这个食材（避免重复添加）
+    const picked = stepSelections[step.id] || [];
+    if (picked.includes(ingredientId)) {
+      // 如果已经选择，不重复添加，但可以增加数量（通过updateItemQty）
+      return;
     }
     
-    const qty = typeof step.defaultQty === 'number' && step.defaultQty > 0 ? step.defaultQty : 1;
-    await bowlService.createItem({ bowlId, ingredientId, quantity: qty, unitPrice });
-    const picked = stepSelections[step.id] || [];
+    // 检查是否超过最大数量限制
+    const maxItems = step?.maxItems ?? 0;
+    if (maxItems > 0 && picked.length >= maxItems) {
+      throw new Error(`Bước này chỉ cho phép chọn tối đa ${maxItems} mục. Vui lòng bỏ bớt mục khác trước.`);
+    }
+    
+    // Backend tự động lấy unitPrice từ Ingredient nếu không truyền hoặc truyền 0
+    // Chỉ cần lấy từ cache nếu có, không cần gọi API
+    const ingredient = stepIngredients.find(ing => ing.id === ingredientId);
+    const unitPrice = ingredient?.unitPrice || 0; // Backend sẽ override nếu cần
+    
+    // defaultQty là số phần, cần chuyển thành gram: quantity = defaultQty × standardQuantity
+    const defaultQty = typeof step.defaultQty === 'number' && step.defaultQty > 0 ? step.defaultQty : 1;
+    const standardQuantity = ingredient?.standardQuantity && ingredient.standardQuantity > 0 
+      ? ingredient.standardQuantity 
+      : 100; // Default 100g nếu không có
+    const quantityInGrams = defaultQty * standardQuantity; // Chuyển phần thành gram
+    
+    await bowlService.createItem({ bowlId, ingredientId, quantity: quantityInGrams, unitPrice });
     set({ stepSelections: { ...stepSelections, [step.id]: [...picked, ingredientId] } });
     await get().recalcTotals();
   },
@@ -309,23 +312,58 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   updateItemQty: async (itemId: string, qty: number) => {
     const { bowlItems } = get();
     const item = bowlItems.find(b => b.id === itemId);
-    if (!item) return;
-    // sanitize and avoid no-op updates
-    const nextQty = Math.max(0, Math.round(Number(qty) || 0));
-    if (nextQty === item.quantity) return;
+    if (!item) {
+      console.warn('[updateItemQty] Item not found:', itemId);
+      return;
+    }
+    
+    // 确保数量是有效的正数
+    const rawQty = Number(qty) || 0;
+    if (rawQty <= 0) {
+      console.warn('[updateItemQty] Invalid quantity:', rawQty, 'for item:', itemId);
+      return;
+    }
+    
+    // 保留合理精度（保留2位小数），避免浮点数问题
+    // 例如：100.001 → 100.00, 100.005 → 100.01
+    const nextQty = Math.round(rawQty * 100) / 100;
+    
+    // 避免无意义的更新（如果差异小于 0.01，则不更新）
+    const currentQty = item.quantity || 0;
+    if (Math.abs(nextQty - currentQty) < 0.01) {
+      return;
+    }
+    
+    // 验证必需字段
+    if (!item.bowlId || !item.ingredientId) {
+      console.error('[updateItemQty] Missing required fields:', { bowlId: item.bowlId, ingredientId: item.ingredientId });
+      return;
+    }
+    
     try {
-      await bowlService.updateItem(itemId, {
+      const updateData = {
         quantity: nextQty,
         bowlId: item.bowlId,
         ingredientId: item.ingredientId,
-        unitPrice: item.unitPrice,
+        unitPrice: item.unitPrice || 0,
+      };
+      
+      console.log('[updateItemQty] Updating item:', itemId, 'with data:', updateData);
+      await bowlService.updateItem(itemId, updateData);
+      
+      // 更新成功后立即重新计算总额
+      await get().recalcTotals();
+    } catch (e: any) {
+      // 记录详细错误信息
+      console.error('[updateItemQty] Failed to update item quantity:', {
+        itemId,
+        quantity: nextQty,
+        error: e?.response?.data || e?.message || e,
+        status: e?.response?.status,
       });
-    } catch (e) {
-      // Swallow backend 500 - recalcTotals will refresh items anyway
-      console.warn('Failed to update item quantity, will refresh on recalc:', e);
+      // 即使失败也尝试刷新数据
+      await get().recalcTotals();
     }
-    // Removed redundant getByIdWithItems call - recalcTotals will refresh items
-    await get().recalcTotals();
   },
 
   recalcTotals: async () => {
@@ -345,14 +383,19 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       
       // Update order total
       if (orderResult.status === 'fulfilled' && orderResult.value?.success) {
-        set({ orderTotal: orderResult.value.data?.totalAmount || 0 });
+        const totalAmount = orderResult.value.data?.totalAmount;
+        console.log('[recalcTotals] Order totalAmount from backend:', totalAmount);
+        set({ orderTotal: totalAmount || 0 });
       }
       
       // Update bowl items and line price (bowl.linePrice is updated by backend after recalc)
       if (bowlResult.status === 'fulfilled' && bowlResult.value?.success) {
         const bowlData = bowlResult.value.data as any;
+        const linePrice = bowlData?.linePrice;
+        console.log('[recalcTotals] Bowl linePrice from backend:', linePrice);
+        console.log('[recalcTotals] Bowl items:', bowlData?.items);
         set({ 
-          bowlLinePrice: bowlData?.linePrice || 0, 
+          bowlLinePrice: linePrice || 0, 
           bowlItems: bowlData?.items || [] 
         });
       }

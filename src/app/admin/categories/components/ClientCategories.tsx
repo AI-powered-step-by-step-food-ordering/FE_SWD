@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import ImageWithFallback from "@/components/shared/ImageWithFallback";
-import AdminSearchBar from '@/components/admin/AdminSearchBar';
 import Pagination from '@/components/admin/Pagination';
 import dynamic from "next/dynamic";
 import apiClient from "@/services/api.config";
@@ -32,73 +31,48 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
     name: "",
     kind: "CARB",
     displayOrder: 0,
-    isActive: true,
+    active: true,
     imageUrl: "",
   });
-  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [sortField, setSortField] = useState<string>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [useLegacy, setUseLegacy] = useState(false);
 
-  const loadCategories = useCallback(async () => {
+  useEffect(() => {
+    loadCategories();
+  }, [showInactive, page, pageSize, sortField, sortDirection]);
+
+  const loadCategories = async () => {
     try {
       setLoading(true);
-      const q = search.trim().toLowerCase();
 
-      if (q && !useLegacy) {
-        setUseLegacy(true);
-        setLoading(false);
-        return;
-      }
-      if (!q && useLegacy) {
-        setUseLegacy(false);
-      }
+      // Use server-side active/inactive endpoints with pagination
+      const response = showInactive 
+        ? await categoryService.getInactiveCategories({
+            page: page - 1,
+            size: pageSize,
+            sortBy: sortField,
+            sortDir: sortDirection,
+          })
+        : await categoryService.getActive({
+            page: page - 1,
+            size: pageSize,
+            sortBy: sortField,
+            sortDir: sortDirection,
+          });
 
-      if (useLegacy && q) {
-        const legacy = await categoryService.getAllLegacy();
-        if (legacy.success && legacy.data) {
-          let list = legacy.data;
-          list = showInactive ? list.filter((c) => !c.isActive) : list.filter((c) => c.isActive);
-          list = list.filter((c) => (
-            (c.name?.toLowerCase().includes(q)) ||
-            (c.kind?.toLowerCase().includes(q))
-          ));
-          const total = list.length;
-          const startIndex = Math.max(0, (page - 1) * Math.max(1, pageSize));
-          const paged = list.slice(startIndex, startIndex + pageSize);
-          setCategories(paged);
-          setTotalElements(total);
-          setTotalPages(Math.max(1, Math.ceil(total / Math.max(1, pageSize))));
-        } else {
-          setCategories([]);
-          setTotalElements(0);
-          setTotalPages(0);
-        }
+      if (response.success && response.data) {
+        const { content, totalElements: total, totalPages: pages } = response.data;
+        setCategories(content);
+        setTotalElements(total);
+        setTotalPages(pages);
       } else {
-        const response = await categoryService.getAll({
-          page: page - 1,
-          size: pageSize,
-          sortBy: sortField,
-          sortDir: sortDirection,
-        });
-
-        if (response.success && response.data) {
-          const { content, totalElements: total, totalPages: pages } = response.data;
-          const filteredCategories = showInactive 
-            ? content.filter(cat => !cat.isActive)
-            : content.filter(cat => cat.isActive);
-          setCategories(filteredCategories);
-          setTotalElements(total);
-          setTotalPages(pages);
-        } else {
-          setCategories([]);
-          setTotalElements(0);
-          setTotalPages(0);
-        }
+        setCategories([]);
+        setTotalElements(0);
+        setTotalPages(0);
       }
     } catch (error) {
       console.error('Error loading categories:', error);
@@ -109,11 +83,7 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [showInactive, page, pageSize, search, sortField, sortDirection, useLegacy]);
-
-  useEffect(() => {
-    loadCategories();
-  }, [loadCategories]);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,7 +92,7 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
         name: formData.name,
         kind: formData.kind,
         displayOrder: formData.displayOrder ?? 0,
-        isActive: editingCategory ? editingCategory.isActive : true,
+        active: editingCategory ? editingCategory.active : true,
         // UI-only field; backend may accept or ignore
         ...(formData.imageUrl ? { imageUrl: formData.imageUrl } : {}),
       };
@@ -147,14 +117,14 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
   };
 
   const handleSoftDelete = async (id: string) => {
-    if (window.confirm("Are you sure you want to soft delete this category?")) {
+    if (window.confirm("Are you sure you want to delete this category?")) {
       try {
         await categoryService.softDelete(id);
-        toast.success("Category soft deleted successfully");
+        toast.success("Category deleted successfully");
         loadCategories();
       } catch (error) {
-        console.error("Error soft deleting category:", error);
-        toast.error("Failed to soft delete category");
+        console.error("Error deleting category:", error);
+        toast.error("Failed to delete category");
       }
     }
   };
@@ -178,7 +148,7 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
       name: category.name,
       kind: category.kind,
       displayOrder: category.displayOrder ?? 0,
-      isActive: category.isActive ?? true,
+      active: category.active ?? true,
       imageUrl: category.imageUrl || "",
     });
     setShowModal(true);
@@ -190,7 +160,7 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
       name: "",
       kind: "CARB",
       displayOrder: 0,
-      isActive: true,
+      active: true,
       imageUrl: "",
     });
   };
@@ -198,11 +168,6 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
   const handleCloseModal = () => {
     setShowModal(false);
     resetForm();
-  };
-
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    setPage(1);
   };
 
   const handleSort = (field: string) => {
@@ -232,7 +197,6 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
           <p className="mt-1 text-sm text-gray-600">Manage all categories in the system</p>
         </div>
         <div className="flex items-center gap-4">
-          <AdminSearchBar value={search} onChange={handleSearch} placeholder="Tìm category..." />
           <div className="flex items-center gap-2">
             <span className={`text-sm ${!showInactive ? 'font-medium text-green-600' : 'text-gray-500'}`}>Active</span>
             <button
@@ -272,8 +236,8 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('kind')}>
                   <div className="flex items-center gap-1">Kind <span className="text-sm">{getSortIcon('kind')}</span></div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('isActive')}>
-                  <div className="flex items-center gap-1">Status <span className="text-sm">{getSortIcon('isActive')}</span></div>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('active')}>
+                  <div className="flex items-center gap-1">Status <span className="text-sm">{getSortIcon('active')}</span></div>
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
               </tr>
@@ -311,14 +275,14 @@ export default function ClientCategories({ initialCategories = [] }: Props) {
                     </td>
                     <td className="whitespace-nowrap px-6 py-4"><div className="text-sm font-medium text-gray-900">{category.name}</div></td>
                     <td className="whitespace-nowrap px-6 py-4"><span className="rounded-full bg-purple-100 px-2 py-1 text-xs font-semibold text-purple-800">{category.kind}</span></td>
-                    <td className="whitespace-nowrap px-6 py-4"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${category.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{category.isActive ? "Active" : "Inactive"}</span></td>
+                    <td className="whitespace-nowrap px-6 py-4"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${category.active === true ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{category.active === true ? "Active" : "Inactive"}</span></td>
                     <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                      {!category.isActive ? (
+                      {category.active === false ? (
                         <button onClick={() => handleRestore(category.id)} className="mr-4 text-green-600 hover:text-green-900">Restore</button>
                       ) : (
                         <>
                           <button onClick={() => handleEdit(category)} className="mr-4 text-blue-600 hover:text-blue-900">Edit</button>
-                          <button onClick={() => handleSoftDelete(category.id)} className="text-orange-600 hover:text-orange-900">Soft Delete</button>
+                          <button onClick={() => handleSoftDelete(category.id)} className="text-orange-600 hover:text-orange-900">Delete</button>
                         </>
                       )}
                     </td>

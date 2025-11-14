@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@emailjs/browser": "^4.4.1",
     "apexcharts": "^4.5.0",
     "axios": "^1.12.2",
     "class-variance-authority": "^0.7.1",

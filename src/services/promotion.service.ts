@@ -26,6 +26,95 @@ class PromotionService {
   }
 
   /**
+   * Search promotions with server-side filtering, pagination, and sorting
+   * Backend expects: promotionId, code, name, status (active/expired/upcoming/all)
+   */
+  async search(params?: { 
+    promotionId?: string;
+    code?: string;
+    name?: string;
+    status?: string; // "active", "expired", "upcoming", "all"
+    page?: number; 
+    size?: number; 
+    sortBy?: string; 
+    sortDir?: 'asc' | 'desc' 
+  }): Promise<ApiResponse<import('@/types/api.types').PagedResponse<Promotion>>> {
+    const searchParams = new URLSearchParams();
+
+    if (params?.promotionId) searchParams.append('promotionId', params.promotionId);
+    if (params?.code) searchParams.append('code', params.code);
+    if (params?.name) searchParams.append('name', params.name);
+    if (params?.status) searchParams.append('status', params.status);
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<any>(`/api/promotions/search?${searchParams.toString()}`);
+    return response.data;
+  }
+
+  /**
+   * Get all promotions with pagination
+   */
+  async getAllPaged(params?: { 
+    page?: number; 
+    size?: number; 
+    sortBy?: string; 
+    sortDir?: 'asc' | 'desc' 
+  }): Promise<ApiResponse<import('@/types/api.types').PagedResponse<Promotion>>> {
+    const searchParams = new URLSearchParams();
+
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<any>(`/api/promotions/getall?${searchParams.toString()}`);
+    return response.data;
+  }
+
+  /**
+   * Get active promotions with pagination
+   */
+  async getActive(params?: { 
+    page?: number; 
+    size?: number; 
+    sortBy?: string; 
+    sortDir?: 'asc' | 'desc' 
+  }): Promise<ApiResponse<import('@/types/api.types').PagedResponse<Promotion>>> {
+    const searchParams = new URLSearchParams();
+
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<any>(`/api/promotions/active?${searchParams.toString()}`);
+    return response.data;
+  }
+
+  /**
+   * Get inactive promotions with pagination
+   */
+  async getInactive(params?: { 
+    page?: number; 
+    size?: number; 
+    sortBy?: string; 
+    sortDir?: 'asc' | 'desc' 
+  }): Promise<ApiResponse<import('@/types/api.types').PagedResponse<Promotion>>> {
+    const searchParams = new URLSearchParams();
+
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<any>(`/api/promotions/inactive?${searchParams.toString()}`);
+    return response.data;
+  }
+
+  /**
    * Get promotion by ID
    */
   async getById(id: string): Promise<ApiResponse<Promotion>> {
@@ -56,7 +145,27 @@ class PromotionService {
   }
 
   /**
-   * Delete promotion (Admin only)
+   * Soft delete promotion (Admin only)
+   */
+  async softDelete(id: string): Promise<ApiResponse<void>> {
+    const response = await apiClient.put<ApiResponse<void>>(
+      `/api/promotions/soft-delete/${id}`
+    );
+    return response.data;
+  }
+
+  /**
+   * Restore soft-deleted promotion (Admin only)
+   */
+  async restore(id: string): Promise<ApiResponse<void>> {
+    const response = await apiClient.put<ApiResponse<void>>(
+      `/api/promotions/restore/${id}`
+    );
+    return response.data;
+  }
+
+  /**
+   * Hard delete promotion (Admin only)
    */
   async delete(id: string): Promise<ApiResponse<Record<string, never>>> {
     const response = await apiClient.delete<ApiResponse<Record<string, never>>>(
@@ -73,7 +182,7 @@ class PromotionService {
     if (response.success && response.data) {
       const now = new Date();
       return response.data.filter((promo) => {
-        if (!promo.isActive) return false;
+        if (promo.active === false) return false;
         if (promo.startsAt && new Date(promo.startsAt) > now) return false;
         if (promo.endsAt && new Date(promo.endsAt) < now) return false;
         return true;

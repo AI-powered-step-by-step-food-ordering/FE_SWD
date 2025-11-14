@@ -5,8 +5,25 @@ class StoreService {
   /**
    * Get all stores
    */
-  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Store>>> {
-    const response = await apiClient.get<ApiResponse<any>>('/api/stores/getall', { params });
+  async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc'; sort?: string }): Promise<ApiResponse<PagedResponse<Store> | Store[]>> {
+    const searchParams = new URLSearchParams();
+    
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    
+    let sortBy = params?.sortBy;
+    let sortDir = params?.sortDir;
+    
+    if (params?.sort) {
+      const [field, direction] = params.sort.split(',');
+      sortBy = field;
+      sortDir = (direction as 'asc' | 'desc') || 'asc';
+    }
+    
+    if (sortBy) searchParams.append('sortBy', sortBy);
+    if (sortDir) searchParams.append('sortDir', sortDir);
+    
+    const response = await apiClient.get<ApiResponse<any>>(`/api/stores/getall?${searchParams.toString()}`);
     const res = response.data as ApiResponse<any>;
     // If backend returns paged, keep as-is; if returns array, wrap in synthetic page
     if (Array.isArray(res.data)) {
@@ -23,6 +40,51 @@ class StoreService {
       return { ...res, data: synthetic } as ApiResponse<PagedResponse<Store>>;
     }
     return res as ApiResponse<PagedResponse<Store>>;
+  }
+
+  /**
+   * Get all stores (legacy method for backward compatibility)
+   */
+  async getAllLegacy(): Promise<ApiResponse<Store[]>> {
+    const response = await apiClient.get<ApiResponse<any>>('/api/stores/getall');
+    const res = response.data as ApiResponse<any>;
+    if (Array.isArray(res.data)) {
+      return res as ApiResponse<Store[]>;
+    }
+    if (res.data?.content) {
+      return { ...res, data: res.data.content } as ApiResponse<Store[]>;
+    }
+    return res as ApiResponse<Store[]>;
+  }
+
+  /**
+   * Get active stores with pagination
+   */
+  async getActive(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Store>>> {
+    const searchParams = new URLSearchParams();
+    
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<ApiResponse<PagedResponse<Store>>>(`/api/stores/active?${searchParams.toString()}`);
+    return response.data;
+  }
+
+  /**
+   * Get inactive stores with pagination
+   */
+  async getInactive(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<Store>>> {
+    const searchParams = new URLSearchParams();
+    
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<ApiResponse<PagedResponse<Store>>>(`/api/stores/inactive?${searchParams.toString()}`);
+    return response.data;
   }
 
   /**

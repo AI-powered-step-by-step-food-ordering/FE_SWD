@@ -3,11 +3,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { Ingredient, Category } from '@/types/api.types';
 import ingredientService from '@/services/ingredient.service';
-import AddIngredientForm from './AddIngredientForm';
+import categoryService from '@/services/category.service';
+// import AddIngredientForm from './AddIngredientForm';
 import IngredientList from './IngredientList';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
-import AdminSearchBar from '@/components/admin/AdminSearchBar';
 import Pagination from '@/components/admin/Pagination';
+import EditIngredientModal from './EditIngredientModal';
+import AddIngredientModal from './AddIngredientModal';
 
 type Props = {
   initialIngredients?: Ingredient[];
@@ -20,77 +22,80 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
 
   // State for backend pagination
   const [ingredients, setIngredients] = useState<Ingredient[]>(initialIngredients || []);
+  const [categories, setCategories] = useState<Category[]>(Array.isArray(initialCategories) ? initialCategories : []);
+  const [showInactive, setShowInactive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(12);
-  const [search, setSearch] = useState('');
+  const [pageSize, setPageSize] = useState(10);
   const [sortField, setSortField] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [useLegacy, setUseLegacy] = useState(false);
-
-  // Load ingredients with backend pagination
-  const loadIngredients = useCallback(async () => {
-    setLoading(true);
-    try {
-      const q = (search || '').trim().toLowerCase();
-
-      if (q && !useLegacy) {
-        setUseLegacy(true);
-        setLoading(false);
-        return;
-      }
-      if (!q && useLegacy) {
-        setUseLegacy(false);
-      }
-
-      if (useLegacy && q) {
-        const legacy = await ingredientService.getAllLegacy();
-        if (legacy.success && legacy.data) {
-          let list = legacy.data;
-          list = list.filter((i) => (
-            (i.name?.toLowerCase().includes(q)) ||
-            (String(i.categoryId || '').toLowerCase().includes(q))
-          ));
-          const total = list.length;
-          const startIndex = Math.max(0, (page - 1) * Math.max(1, pageSize));
-          const paged = list.slice(startIndex, startIndex + pageSize);
-          setIngredients(paged);
-          setTotalElements(total);
-          setTotalPages(Math.max(1, Math.ceil(total / Math.max(1, pageSize))));
-        }
-      } else {
-        const response = await ingredientService.getAll({
-          page: page - 1, // Backend uses 0-indexed pages
-          size: pageSize,
-          sortBy: sortField || undefined,
-          sortDir: sortDirection,
-        });
-
-        if (response.success && response.data) {
-          setIngredients(response.data.content);
-          setTotalElements(response.data.totalElements);
-          setTotalPages(response.data.totalPages);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load ingredients:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, pageSize, search, sortField, sortDirection, useLegacy]);
+  const [editing, setEditing] = useState<Ingredient | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   // Load ingredients when dependencies change
   useEffect(() => {
     loadIngredients();
-  }, [loadIngredients]);
+  }, [showInactive, page, pageSize, sortField, sortDirection]);
 
-  // Handle search
-  const handleSearch = (searchTerm: string) => {
-    setSearch(searchTerm);
-    setPage(1); // Reset to first page when searching
+  // Load ingredients with backend pagination (fully server-side)
+  const loadIngredients = async () => {
+    setLoading(true);
+    try {
+      // Use server-side active/inactive endpoints with pagination
+      const response = showInactive 
+        ? await ingredientService.getInactive({
+            page: page - 1,
+            size: pageSize,
+            sortBy: sortField,
+            sortDir: sortDirection,
+          })
+        : await ingredientService.getActive({
+            page: page - 1,
+            size: pageSize,
+            sortBy: sortField,
+            sortDir: sortDirection,
+          });
+
+      if (response.success && response.data) {
+        const { content, totalElements: total, totalPages: pages } = response.data;
+        
+        setIngredients(content);
+        setTotalElements(total);
+        setTotalPages(pages);
+      } else {
+        setIngredients([]);
+        setTotalElements(0);
+        setTotalPages(0);
+      }
+    } catch (error) {
+      console.error('Failed to load ingredients:', error);
+      setIngredients([]);
+      setTotalElements(0);
+      setTotalPages(0);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  // Ensure categories are loaded and normalized
+  useEffect(() => {
+    const ensureCategories = async () => {
+      const list = Array.isArray(categories) ? categories : [];
+      if (list.length > 0) return;
+      try {
+        const resp = await categoryService.getAll({ page: 0, size: 500, sortDir: 'asc', sortBy: 'name' } as any);
+        const content = resp?.data?.content || [];
+        setCategories(content.filter((c) => c.active === true));
+      } catch (err) {
+        console.error('Failed to load categories:', err);
+        setCategories([]);
+      }
+    };
+    ensureCategories();
+  }, []);
 
   // Handle sort
   const handleSort = (field: string) => {
@@ -143,6 +148,28 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
     }
   };
 
+  const handleSoftDelete = async (id: string) => {
+    if (window.confirm("Are you sure you want to delete this ingredient?")) {
+      try {
+        await ingredientService.softDelete(id);
+        loadIngredients();
+      } catch (error) {
+        console.error("Error soft deleting ingredient:", error);
+      }
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    if (window.confirm("Are you sure you want to restore this ingredient?")) {
+      try {
+        await ingredientService.restore(id);
+        loadIngredients();
+      } catch (error) {
+        console.error("Error restoring ingredient:", error);
+      }
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -152,34 +179,51 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
         </div>
 
         <div className="flex items-center gap-4">
-          <AddIngredientForm onAdd={addIngredient} />
+          <div className="flex items-center gap-2">
+            <span className={`text-sm ${!showInactive ? 'font-medium text-green-600' : 'text-gray-500'}`}>Active</span>
+            <button
+              onClick={() => {
+                setShowInactive(!showInactive);
+                setPage(1);
+              }}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                showInactive ? 'bg-red-600' : 'bg-green-600'
+              }`}
+              aria-label="Toggle Active/Inactive"
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  showInactive ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+            <span className={`text-sm ${showInactive ? 'font-medium text-red-600' : 'text-gray-500'}`}>Inactive</span>
+          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white transition-colors hover:bg-green-700"
+          >
+            <i className="bx bx-plus text-[20px]"></i>
+            Add Ingredient
+          </button>
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="flex items-center justify-between">
-        <AdminSearchBar
-          value={search}
-          onChange={handleSearch}
-          placeholder="Search ingredients..."
-        />
-        
-        {/* Sort Controls */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Sort by:</span>
-          <button
-            onClick={() => handleSort('name')}
-            className="px-3 py-1 text-sm border rounded hover:bg-gray-50 flex items-center gap-1"
-          >
-            Name {getSortIcon('name')}
-          </button>
-          <button
-            onClick={() => handleSort('categoryId')}
-            className="px-3 py-1 text-sm border rounded hover:bg-gray-50 flex items-center gap-1"
-          >
-            Category {getSortIcon('categoryId')}
-          </button>
-        </div>
+      {/* Sort Controls */}
+      <div className="flex items-center justify-end gap-2">
+        <span className="text-sm text-gray-600">Sort by:</span>
+        <button
+          onClick={() => handleSort('name')}
+          className="px-3 py-1 text-sm border rounded hover:bg-gray-50 flex items-center gap-1"
+        >
+          Name {getSortIcon('name')}
+        </button>
+        <button
+          onClick={() => handleSort('categoryId')}
+          className="px-3 py-1 text-sm border rounded hover:bg-gray-50 flex items-center gap-1"
+        >
+          Category {getSortIcon('categoryId')}
+        </button>
       </div>
 
       {/* Loading State */}
@@ -191,7 +235,13 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
 
       {/* Ingredients List */}
       {!loading && (
-        <IngredientList items={ingredients} onDelete={deleteIngredient} onUpdate={updateIngredient} />
+        <IngredientList
+          items={ingredients}
+          onDelete={deleteIngredient}
+          onUpdate={(ing) => { setEditing(ing); setShowEditModal(true); }}
+          onSoftDelete={handleSoftDelete}
+          onRestore={handleRestore}
+        />
       )}
 
       {/* Pagination */}
@@ -205,6 +255,28 @@ export default function ClientIngredients({ initialIngredients = [], initialCate
             onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
           />
         </div>
+      )}
+
+      {showEditModal && (
+        <EditIngredientModal
+          ingredient={editing}
+          categories={Array.isArray(categories) ? categories : []}
+          onClose={() => { setShowEditModal(false); setEditing(null); }}
+          onSaved={(saved) => {
+            setIngredients((prev) => prev.map((i) => (i.id === saved.id ? saved : i)));
+          }}
+        />
+      )}
+
+      {showAddModal && (
+        <AddIngredientModal
+          categories={Array.isArray(categories) ? categories : []}
+          onClose={() => setShowAddModal(false)}
+          onSaved={(created) => {
+            addIngredient(created);
+            setShowAddModal(false);
+          }}
+        />
       )}
     </div>
   );

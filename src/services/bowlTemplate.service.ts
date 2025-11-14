@@ -13,7 +13,53 @@ class BowlTemplateService {
    * Get all bowl templates
    */
   async getAll(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<BowlTemplate>>> {
-    const response = await apiClient.get<ApiResponse<PagedResponse<BowlTemplate>>>('/api/bowl_templates/getall', { params });
+    const searchParams = new URLSearchParams();
+    
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+    
+    const response = await apiClient.get<ApiResponse<PagedResponse<BowlTemplate>>>(`/api/bowl_templates/getall?${searchParams.toString()}`);
+    return response.data;
+  }
+
+  /**
+   * Search bowl templates with server-side filtering, pagination, and sorting
+   * Backend expects: name (not searchText)
+   */
+  async search(params?: { 
+    searchText?: string;
+    page?: number; 
+    size?: number; 
+    sortBy?: string; 
+    sortDir?: 'asc' | 'desc' 
+  }): Promise<ApiResponse<PagedResponse<BowlTemplate>>> {
+    const searchParams = new URLSearchParams();
+
+    // Backend expects 'name' parameter, not 'searchText'
+    if (params?.searchText) searchParams.append('name', params.searchText.trim());
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<ApiResponse<PagedResponse<BowlTemplate>>>(`/api/bowl_templates/search?${searchParams.toString()}`);
+    return response.data;
+  }
+
+  /**
+   * Get active bowl templates with pagination
+   */
+  async getActive(params?: { page?: number; size?: number; sortBy?: string; sortDir?: 'asc' | 'desc' }): Promise<ApiResponse<PagedResponse<BowlTemplate>>> {
+    const searchParams = new URLSearchParams();
+    
+    if (params?.page !== undefined) searchParams.append('page', params.page.toString());
+    if (params?.size !== undefined) searchParams.append('size', params.size.toString());
+    if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+    if (params?.sortDir) searchParams.append('sortDir', params.sortDir);
+
+    const response = await apiClient.get<ApiResponse<PagedResponse<BowlTemplate>>>(`/api/bowl_templates/active?${searchParams.toString()}`);
     return response.data;
   }
 
@@ -63,12 +109,42 @@ class BowlTemplateService {
   }
 
   /**
+   * Soft delete bowl template (Admin only)
+   */
+  async softDelete(id: string): Promise<ApiResponse<Record<string, never>>> {
+    const response = await apiClient.put<ApiResponse<Record<string, never>>>(
+      `/api/bowl_templates/soft-delete/${id}`
+    );
+    return response.data;
+  }
+
+  /**
+   * Restore soft-deleted bowl template (Admin only)
+   */
+  async restore(id: string): Promise<ApiResponse<BowlTemplate>> {
+    const response = await apiClient.put<ApiResponse<BowlTemplate>>(
+      `/api/bowl_templates/restore/${id}`
+    );
+    return response.data;
+  }
+
+  /**
    * Get active templates only
    */
   async getActiveTemplates(): Promise<BowlTemplate[]> {
     const response = await this.getAll({ page: 0, size: 100 });
     const content = response.data?.content ?? [];
     return content.filter((template) => template.active === true);
+  }
+
+  /**
+   * Get inactive templates only
+   */
+  async getInactiveTemplates(): Promise<ApiResponse<BowlTemplate[] | PagedResponse<BowlTemplate>>> {
+    const response = await apiClient.get<ApiResponse<BowlTemplate[] | PagedResponse<BowlTemplate>>>(
+      '/api/bowl_templates/inactive'
+    );
+    return response.data;
   }
 
   // Template Steps Methods
