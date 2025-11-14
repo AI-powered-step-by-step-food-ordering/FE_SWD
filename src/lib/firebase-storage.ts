@@ -9,6 +9,18 @@ import {
 } from 'firebase/storage';
 import { storage } from './firebase';
 
+// Check if storage is available
+const checkStorageAvailable = () => {
+  if (!storage) {
+    throw new Error(
+      'Firebase Storage is not configured. ' +
+      'Please set NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET in your .env.local file. ' +
+      'Format: your-project-id.appspot.com'
+    );
+  }
+  return storage;
+};
+
 export interface FirebaseUploadResponse {
   url: string;
   fullPath: string;
@@ -36,6 +48,9 @@ export async function uploadToFirebase(
 ): Promise<FirebaseUploadResponse> {
   return new Promise((resolve, reject) => {
     try {
+      // Check if storage is available
+      const storageInstance = checkStorageAvailable();
+
       // Generate unique filename with timestamp
       const timestamp = Date.now();
       const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
@@ -43,7 +58,7 @@ export async function uploadToFirebase(
       const filePath = `${folder}/${fileName}`;
 
       // Create storage reference
-      const storageRef: StorageReference = ref(storage, filePath);
+      const storageRef: StorageReference = ref(storageInstance, filePath);
 
       // Start upload
       const uploadTask: UploadTask = uploadBytesResumable(storageRef, file, {
@@ -131,6 +146,9 @@ export async function deleteFromFirebase(
   fileUrl: string
 ): Promise<{ success: boolean; message: string }> {
   try {
+    // Check if storage is available
+    const storageInstance = checkStorageAvailable();
+
     // Extract path from URL or use directly if it's a path
     const filePath = extractPathFromUrl(fileUrl);
     
@@ -139,7 +157,7 @@ export async function deleteFromFirebase(
     }
 
     // Create reference to the file
-    const fileRef: StorageReference = ref(storage, filePath);
+    const fileRef: StorageReference = ref(storageInstance, filePath);
 
     // Delete the file
     await deleteObject(fileRef);
@@ -261,12 +279,15 @@ export function validateImageFile(
  */
 export async function getFileMetadata(fileUrl: string) {
   try {
+    // Check if storage is available
+    const storageInstance = checkStorageAvailable();
+
     const filePath = extractPathFromUrl(fileUrl);
     if (!filePath) {
       throw new Error('Invalid file URL');
     }
 
-    const fileRef = ref(storage, filePath);
+    const fileRef = ref(storageInstance, filePath);
     const metadata = await getDownloadURL(fileRef);
     
     return metadata;
